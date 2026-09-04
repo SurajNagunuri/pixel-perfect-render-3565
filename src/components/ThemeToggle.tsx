@@ -3,9 +3,6 @@ import { Moon, Sun } from "lucide-react";
 
 const KEY = "borrower-copilot-theme";
 
-/** Inline script: sets the appearance before React paints, so there is no flash. */
-export const themeInitScript = `(function(){try{var t=localStorage.getItem("${KEY}");if(!t){t=window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark";}if(t==="light")document.documentElement.classList.add("light");}catch(e){}})();`;
-
 function apply(theme: "light" | "dark") {
   document.documentElement.classList.toggle("light", theme === "light");
 }
@@ -13,8 +10,22 @@ function apply(theme: "light" | "dark") {
 export function ThemeToggle() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
 
+  // Applied after hydration so the server and client markup always agree.
   useEffect(() => {
-    setTheme(document.documentElement.classList.contains("light") ? "light" : "dark");
+    let saved: string | null = null;
+    try {
+      saved = window.localStorage.getItem(KEY);
+    } catch {
+      /* ignore */
+    }
+    const next =
+      saved === "light" || saved === "dark"
+        ? saved
+        : window.matchMedia("(prefers-color-scheme: light)").matches
+          ? "light"
+          : "dark";
+    setTheme(next);
+    apply(next);
   }, []);
 
   function toggle() {
