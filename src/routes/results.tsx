@@ -174,7 +174,9 @@ function Results() {
               <p className="text-sm font-medium">Use the safer number when negotiating.</p>
               <p className="text-sm text-muted-foreground">
                 You asked for {formatINR(a.amount)}. Assessed over {r.assumedTenureMonths} months.
+                {r.tenureNote ? ` ${r.tenureNote}` : ""}
               </p>
+
             </div>
             <Why question="Why is the lender number higher?">
               Because lenders may use a higher acceptable debt-service threshold (
