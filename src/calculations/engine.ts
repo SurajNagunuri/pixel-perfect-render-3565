@@ -492,7 +492,11 @@ export function runAssessment(a: Answers): Assessment {
   const aff = calculateAffordability(a);
   const rate = calculateFairRate(a);
   const midRate = (rate.value.low + rate.value.high) / 2;
-  const months = DEFAULT_TENURES[purpose];
+  // Pledgeable collateral opens up secured products, which run longer than the unsecured default.
+  const securedRoute = a.hasCollateral === true && (a.collateralValue ?? 0) > 0;
+  const months = securedRoute
+    ? Math.max(DEFAULT_TENURES[purpose], DEFAULT_TENURES.against_property)
+    : DEFAULT_TENURES[purpose];
 
   const safeAmount = calculateSafeBorrowing(aff.safeEmi.value, rate.value, months);
   const lenderAmount = calculateLenderLikelySanction(aff.lenderEmi.value, rate.value, months, a);
