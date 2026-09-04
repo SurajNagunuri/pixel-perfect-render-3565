@@ -502,3 +502,27 @@ function Row({ k, v }: { k: string; v: string }) {
     </div>
   );
 }
+
+/** One line of the monthly money flow, so the EMI ceiling can be read as arithmetic. */
+function FlowRow({
+  label,
+  value,
+  strong,
+  muted,
+}: {
+  label: string;
+  value: number;
+  strong?: boolean;
+  muted?: boolean;
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 py-2">
+      <dt className={muted ? "text-muted-foreground/80" : strong ? "font-medium" : "text-muted-foreground"}>
+        {label}
+      </dt>
+      <dd className={`num shrink-0 ${strong ? "font-medium" : ""} ${value < 0 ? "text-danger" : ""}`}>
+        {value < 0 ? `− ${formatINR(Math.abs(value))}` : formatINR(value)}
+      </dd>
+    </div>
+  );
+}
