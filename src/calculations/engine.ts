@@ -372,6 +372,15 @@ export function generateConfidence(a: Answers) {
     notes.push("Rate confidence: Low — your credit score is unknown, so the range stays wider.");
   }
 
+  // Never claim high overall confidence when the score is unknown or income is undocumented.
+  if (a.creditKnown !== "yes" && overall === "High") overall = "Medium";
+  if (a.incomeType === "self_employed" || a.incomeType === "informal") {
+    if (overall === "High") overall = "Medium";
+    notes.push(
+      "Overall confidence is capped at Medium because income for self-employed and cash earners is harder to verify.",
+    );
+  }
+
   let amount: Confidence = overall;
   if (a.incomeType === "self_employed" && a.documentedAnnualIncome === null) {
     amount = "Low";
