@@ -772,16 +772,27 @@ export function generateReasons(a: Answers, assessment: Omit<Assessment, "reason
     out.push("You skipped existing EMIs — anything already running reduces every number on this page.");
   else out.push("No existing EMIs, so your full debt-service capacity is available.");
 
+  const cf = assessment.cashFlow;
   out.push(
-    `Assessed monthly income ₹${Math.round(assessment.assessedMonthlyIncome).toLocaleString("en-IN")}${assessment.documentedMonthlyIncome !== null ? ` (from documented income of ₹${assessment.documentedMonthlyIncome.toLocaleString("en-IN")}/month, not cash takings)` : ""} with a safer debt burden target of ${Math.round(assessment.stress.safeFoirTarget * 100)}%.`,
+    assessment.bindingConstraint === "cash_flow"
+      ? `Debt-service rules would allow about ₹${assessment.foirSafeEmi.toLocaleString("en-IN")}/month, but after household expenses${cf.insurance > 0 ? ", insurance" : ""}${cf.existingEmi > 0 ? " and your existing EMIs" : ""} your safer cash-flow limit is ₹${assessment.safeEmi.value.toLocaleString("en-IN")}/month. We use the lower number.`
+      : `Assessed monthly income ₹${Math.round(assessment.assessedMonthlyIncome).toLocaleString("en-IN")}${assessment.documentedMonthlyIncome !== null ? ` (from documented income of ₹${assessment.documentedMonthlyIncome.toLocaleString("en-IN")}/month, not cash takings)` : ""} with a safer debt burden target of ${Math.round(assessment.stress.safeFoirTarget * 100)}%.`,
   );
+  if (cf.childrenExpenses > 0)
+    out.push(
+      `Children's costs of ₹${cf.childrenExpenses.toLocaleString("en-IN")}/month are part of your household spending, so they reduce the EMI we call comfortable.`,
+    );
+  if (cf.spouseContribution > 0)
+    out.push(
+      `We count ₹${cf.spouseContribution.toLocaleString("en-IN")}/month of your spouse's income as reliably available — not the whole amount.`,
+    );
   if (assessment.verdict.value === "BORROW")
     out.push("Requested amount remains inside the safer affordability range.");
   if (assessment.verdict.value === "BORROW_LESS")
     out.push("Requested amount is above the safer affordability range.");
   if (isSecuredRoute(a))
     out.push("Collateral available — this should be asked for as a secured loan, which is priced lower.");
-  return out.slice(0, 4);
+  return out.slice(0, 5);
 
 }
 
