@@ -62,7 +62,7 @@ function Assess() {
   const [index, setIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const steps = useMemo(() => visibleSteps(a), [a]);
-  const step = steps[Math.min(index, steps.length - 1)];
+  const step: StepId = steps[Math.min(index, steps.length - 1)] ?? "purpose";
 
   function next() {
     const err = validate(step, a);
