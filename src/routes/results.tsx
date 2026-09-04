@@ -212,19 +212,13 @@ function Results() {
               <dl className="mt-3 space-y-1.5 text-sm text-muted-foreground">
                 <Row k="Loan amount" v={formatINR(a.amount)} />
                 <Row
-                  k={a.hasOffer && a.offerFee !== null ? "Processing fee (your quote)" : "Assumed processing fee (1.5%)"}
-                  v={formatINR(a.hasOffer && a.offerFee !== null ? a.offerFee : (a.amount ?? 0) * 0.015)}
+                  k={r.feeIsQuoted ? "Processing fee (your quote)" : "Assumed processing fee"}
+                  v={formatINR(r.upfrontFee)}
                 />
-                <Row
-                  k="Net amount you'd receive"
-                  v={formatINR(
-                    (a.amount ?? 0) -
-                      (a.hasOffer && a.offerFee !== null ? a.offerFee : (a.amount ?? 0) * 0.015) -
-                      (a.amount ?? 0) * 0.002,
-                  )}
-                />
+                <Row k="Net amount you'd receive" v={formatINR(r.netDisbursed)} />
               </dl>
               <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{r.apr.reason}</p>
+
             </div>
 
             {r.offerComparison ? (
