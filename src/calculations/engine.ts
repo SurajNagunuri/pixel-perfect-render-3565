@@ -885,6 +885,8 @@ export function runAssessment(a: Answers): Assessment {
     requested,
     months,
     aff.safeFoir,
+    aff.cashFlow.freeCashFlow,
+    aff.cashFlow.reliableHouseholdIncome,
   );
 
   const verdict = generateVerdict(
