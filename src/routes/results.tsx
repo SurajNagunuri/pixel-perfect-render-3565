@@ -272,14 +272,14 @@ function Results() {
                   max={emiMax}
                 />
                 <CompareBar
-                  label="EMI on the amount you asked for"
+                  label="EMI on what you asked for"
                   caption={`${formatINR(r.requestedEmi)}/mo`}
                   value={r.requestedEmi}
                   max={emiMax}
                   tone={r.requestedEmi > r.safeEmi.value ? "caution" : "neutral"}
                 />
                 <CompareBar
-                  label="What a lender might stretch you to"
+                  label="What a lender might allow"
                   caption={`${formatINR(r.lenderEmi.value)}/mo`}
                   value={r.lenderEmi.value}
                   max={emiMax}
@@ -358,8 +358,9 @@ function Results() {
               })}
             </div>
             <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-              Pick the shortest tenure whose EMI still sits under your ceiling — that's the cheapest loan you
-              can comfortably carry.
+              {recommended
+                ? "Pick the shortest tenure whose EMI still sits under your ceiling — that's the cheapest loan you can comfortably carry."
+                : `At ${formatINR(a.amount)} no tenure keeps the EMI under your ${formatINR(r.safeEmi.value)} ceiling. Stretching the tenure only adds interest — reduce the amount instead.`}
             </p>
           </ResultSection>
         </div>
