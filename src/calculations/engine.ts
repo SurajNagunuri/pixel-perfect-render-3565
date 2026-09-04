@@ -578,7 +578,9 @@ export function calculateStressCase(
 
 export function generateConfidence(a: Answers) {
   const notes: string[] = [];
-  const core = [a.purpose, a.amount, a.incomeType, a.monthlyIncome, a.householdExpenses, a.age];
+  const expenseInfo = householdExpenseTotal(a);
+  const expensesAnswered = expenseInfo.total > 0;
+  const core = [a.purpose, a.amount, a.incomeType, a.monthlyIncome, expensesAnswered ? true : null, a.age];
   const extra = [
     a.incomeStability,
     a.emergencySavings,
@@ -586,13 +588,47 @@ export function generateConfidence(a: Answers) {
     a.creditKnown === "yes" ? a.creditScore : null,
     a.documentedAnnualIncome ?? (a.incomeType === "salaried" ? a.variableIncomePct : null),
     a.existingEmi === null ? null : true,
+    a.hasInsurance === null || a.hasInsurance === "unknown" ? null : true,
+    a.maritalStatus === "married"
+      ? a.spouseContributes === null || a.spouseContributes === "prefer_not"
+        ? null
+        : true
+      : a.maritalStatus,
   ];
   const answered = extra.filter((v) => v !== null && v !== undefined && v !== "unknown").length;
   const coreOk = core.every((v) => v !== null);
 
   let overall: Confidence = "Low";
-  if (coreOk && answered >= 5) overall = "High";
-  else if (coreOk && answered >= 3) overall = "Medium";
+  if (coreOk && answered >= 6) overall = "High";
+  else if (coreOk && answered >= 4) overall = "Medium";
+
+  // Missing household information must never look like certainty.
+  if (expenseInfo.missing.length >= 3) {
+    overall = overall === "High" ? "Medium" : overall;
+    notes.push(
+      `We have enough information to estimate debt capacity, but ${expenseInfo.missing.length} household expense categories are missing, so your safe borrowing range is intentionally wider.`,
+    );
+  }
+  if (a.hasInsurance === null || a.hasInsurance === "unknown") {
+    overall = overall === "High" ? "Medium" : overall;
+    notes.push(
+      "Insurance premiums are unknown. We do not assume they are zero — we hold back a small allowance instead, which keeps the range wider.",
+    );
+  }
+  if (a.maritalStatus === "married" && (a.spouseReliableContribution === "unsure" || a.spouseContributes === "prefer_not")) {
+    overall = overall === "High" ? "Medium" : overall;
+    notes.push(
+      "How much of your spouse's income reliably reaches the household is uncertain, so we count only a conservative part of it rather than treating it as guaranteed.",
+    );
+  }
+  if (a.emergencySavings === "unknown")
+    notes.push("Your savings cushion is unknown, which widens the range rather than lowering your capacity.");
+  if (a.emergencySavings === "6plus")
+    notes.push("A 6+ month savings cushion is the strongest single sign that you can absorb a bad month.");
+  if (expenseInfo.children > 0)
+    notes.push(
+      `Your children's monthly costs of ₹${expenseInfo.children.toLocaleString("en-IN")} are counted in your household cash flow, which lowers the EMI we think is comfortable.`,
+    );
 
   let rate: Confidence = "Medium";
   if (a.creditKnown === "yes" && a.creditScore !== null) {
