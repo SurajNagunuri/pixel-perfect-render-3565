@@ -308,7 +308,11 @@ function Results() {
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   Debt-service rules would allow around {formatINR(r.foirSafeEmi)}/month. After everything
                   your household actually spends, {formatINR(r.cashFlow.emiCapFromCashFlow)}/month is what
-                  comfortably fits. We use the lower of the two.
+                  comfortably fits. We use the lower of the two
+                  {r.safeEmi.value < Math.min(r.foirSafeEmi, r.cashFlow.emiCapFromCashFlow)
+                    ? `, then trim it to ${formatINR(r.safeEmi.value)}/month so one bad month doesn't break the EMI`
+                    : ""}
+                  .
                 </p>
               </div>
 

@@ -182,7 +182,7 @@ function CardPage() {
               </p>
               <p className="mt-1.5 text-sm leading-relaxed">
                 {r.bindingConstraint === "cash_flow"
-                  ? `Lending rules would allow about ${formatINR(r.foirSafeEmi)} a month, but after what my household actually spends only ${formatINR(r.cashFlow.emiCapFromCashFlow)} a month fits comfortably.`
+                  ? `Lending rules would allow about ${formatINR(r.foirSafeEmi)} a month, but after what my household actually spends only ${formatINR(r.cashFlow.emiCapFromCashFlow)} a month fits comfortably${r.safeEmi.value < r.cashFlow.emiCapFromCashFlow ? `, and allowing for a bad month brings my ceiling to ${formatINR(r.safeEmi.value)}` : ""}.`
                   : `After my household spending there is ${formatINR(r.cashFlow.freeCashFlow)} a month free, and a safer debt burden limit puts my ceiling at ${formatINR(r.safeEmi.value)} a month.`}
               </p>
             </div>
