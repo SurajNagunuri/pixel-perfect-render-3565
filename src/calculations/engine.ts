@@ -542,7 +542,7 @@ export function runAssessment(a: Answers): Assessment {
       reason: aprLow.reason,
     },
     requestedEmi,
-    tenureTable: tenureTable(requested, midRate, purpose),
+    tenureTable: tenureTable(requested, midRate, securedRoute ? "against_property" : purpose),
     assumedTenureMonths: months,
     stress,
     foirNow,
