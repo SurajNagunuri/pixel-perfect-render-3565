@@ -724,7 +724,10 @@ export function generateVerdict(
   // "Don't borrow" is reserved for genuine fragility, not simply asking for too much.
   // Collateral is never on its own a reason to stop — it is a reason to change product.
   const dontBorrow =
-    noRoom || (bounce && expensiveDebt) || (wayOver && (bounce || expensiveDebt || fragile));
+    noRoom ||
+    (bounce && expensiveDebt) ||
+    (eatsFreeCash && (bounce || expensiveDebt || fragile)) ||
+    (wayOver && (bounce || expensiveDebt || fragile));
 
   if (dontBorrow && flags.length) {
     return {
