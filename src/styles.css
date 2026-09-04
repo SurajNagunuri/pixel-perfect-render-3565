@@ -5,23 +5,26 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Borrower Copilot design system — calm premium fintech.
- * Ink + parchment, restrained evergreen accent, serif display type.
+ * Borrower Copilot design system — Apple keynote dark.
+ * Near-black stage, luminous white type, tight SF-style headlines,
+ * system blue accent, soft luminous depth instead of hard borders.
  * All colours are semantic tokens; never hardcode colours in components.
  */
 
 @theme inline {
-  --font-display: "Instrument Serif", ui-serif, Georgia, serif;
-  --font-sans: "Work Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --font-display:
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter Tight", "Helvetica Neue", sans-serif;
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter Tight", "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "IBM Plex Mono", monospace;
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 6px);
+  --radius-md: calc(var(--radius) - 3px);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
+  --radius-xl: calc(var(--radius) + 6px);
+  --radius-2xl: calc(var(--radius) + 12px);
+  --radius-3xl: calc(var(--radius) + 20px);
+  --radius-4xl: calc(var(--radius) + 28px);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -56,43 +59,47 @@
   --color-surface: var(--surface);
   --color-surface-strong: var(--surface-strong);
 
-  --shadow-card: 0 1px 2px oklch(0.2 0.02 260 / 0.04), 0 8px 24px oklch(0.2 0.02 260 / 0.05);
-  --shadow-lift: 0 2px 6px oklch(0.2 0.02 260 / 0.06), 0 18px 40px oklch(0.2 0.02 260 / 0.09);
+  --shadow-card: 0 1px 0 oklch(1 0 0 / 0.05) inset, 0 12px 34px oklch(0 0 0 / 0.55);
+  --shadow-lift: 0 1px 0 oklch(1 0 0 / 0.07) inset, 0 26px 70px oklch(0 0 0 / 0.7);
 }
 
 :root {
-  --radius: 0.5rem;
-  --background: oklch(0.985 0.008 85);
-  --foreground: oklch(0.245 0.018 250);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.245 0.018 250);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.245 0.018 250);
-  --primary: oklch(0.38 0.062 166);
-  --primary-foreground: oklch(0.985 0.008 85);
-  --secondary: oklch(0.955 0.012 90);
-  --secondary-foreground: oklch(0.3 0.02 250);
-  --muted: oklch(0.955 0.012 90);
-  --muted-foreground: oklch(0.505 0.016 250);
-  --accent: oklch(0.93 0.03 95);
-  --accent-foreground: oklch(0.3 0.03 80);
-  --destructive: oklch(0.51 0.16 27);
-  --destructive-foreground: oklch(0.985 0.008 85);
-  --border: oklch(0.895 0.012 90);
-  --input: oklch(0.885 0.012 90);
-  --ring: oklch(0.38 0.062 166);
+  color-scheme: dark;
+  --radius: 0.875rem;
 
-  --positive: oklch(0.44 0.085 158);
-  --positive-foreground: oklch(0.985 0.008 85);
-  --positive-soft: oklch(0.955 0.03 158);
-  --caution: oklch(0.55 0.11 70);
-  --caution-foreground: oklch(0.985 0.008 85);
-  --caution-soft: oklch(0.965 0.04 85);
-  --danger: oklch(0.48 0.15 25);
-  --danger-foreground: oklch(0.985 0.008 85);
-  --danger-soft: oklch(0.96 0.025 30);
-  --surface: oklch(0.972 0.01 88);
-  --surface-strong: oklch(0.245 0.018 250);
+  --background: oklch(0.145 0.004 265);
+  --foreground: oklch(0.975 0.002 265);
+  --card: oklch(0.195 0.005 265);
+  --card-foreground: oklch(0.975 0.002 265);
+  --popover: oklch(0.215 0.006 265);
+  --popover-foreground: oklch(0.975 0.002 265);
+
+  --primary: oklch(0.635 0.178 254);
+  --primary-foreground: oklch(0.995 0 0);
+  --secondary: oklch(0.255 0.006 265);
+  --secondary-foreground: oklch(0.965 0.002 265);
+  --muted: oklch(0.255 0.006 265);
+  --muted-foreground: oklch(0.735 0.006 265);
+  --accent: oklch(0.285 0.012 258);
+  --accent-foreground: oklch(0.975 0.002 265);
+  --destructive: oklch(0.62 0.19 24);
+  --destructive-foreground: oklch(0.995 0 0);
+  --border: oklch(0.305 0.006 265);
+  --input: oklch(0.345 0.007 265);
+  --ring: oklch(0.635 0.178 254);
+
+  --positive: oklch(0.79 0.16 152);
+  --positive-foreground: oklch(0.16 0.02 155);
+  --positive-soft: oklch(0.29 0.055 155);
+  --caution: oklch(0.83 0.145 84);
+  --caution-foreground: oklch(0.18 0.03 80);
+  --caution-soft: oklch(0.31 0.055 78);
+  --danger: oklch(0.7 0.17 22);
+  --danger-foreground: oklch(0.17 0.03 25);
+  --danger-soft: oklch(0.31 0.07 24);
+
+  --surface: oklch(0.205 0.005 265);
+  --surface-strong: oklch(0.965 0.002 265);
 }
 
 @layer base {
@@ -105,6 +112,7 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
 
   h1,
@@ -112,31 +120,57 @@
   h3,
   .font-display {
     font-family: var(--font-display);
-    font-weight: 400;
-    letter-spacing: -0.01em;
+    font-weight: 600;
+    letter-spacing: -0.028em;
+  }
+
+  h1 {
+    letter-spacing: -0.035em;
   }
 }
 
 @utility num {
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
 }
 
 @utility eyebrow {
   font-size: 0.6875rem;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  font-weight: 500;
+  font-weight: 590;
   color: var(--color-muted-foreground);
 }
 
 @utility panel {
   background-color: var(--color-card);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-2xl);
   box-shadow: var(--shadow-card);
 }
 
+/* Luminous keynote glow used behind hero type. */
+@utility stage-glow {
+  position: relative;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: -20% -10% auto -10%;
+    height: 70%;
+    background: radial-gradient(
+      60% 100% at 50% 0%,
+      oklch(0.635 0.178 254 / 0.22),
+      transparent 70%
+    );
+    pointer-events: none;
+    z-index: 0;
+  }
+}
+
+/*
+ * The negotiation card must print as ink on paper, so the print sheet
+ * inverts back to a light document regardless of the dark on-screen theme.
+ */
 @media print {
   .no-print {
     display: none !important;
@@ -152,9 +186,17 @@
   main {
     padding: 0 !important;
   }
-  .print-card {
+  .print-card,
+  .print-card * {
+    background: transparent !important;
+    color: #14181f !important;
+    border-color: #c9c4b8 !important;
     box-shadow: none !important;
-    border: 1px solid #c9c4b8 !important;
+    text-shadow: none !important;
+  }
+  .print-card {
+    background: #fff !important;
+    border: 1px solid #b9b4a8 !important;
     border-radius: 0 !important;
     margin: 0 !important;
     max-width: none !important;
@@ -177,11 +219,10 @@
     padding-bottom: 10px !important;
   }
   .print-card h1 {
-    font-size: 26pt !important;
+    font-size: 24pt !important;
   }
   @page {
     margin: 12mm;
     size: A4;
   }
 }
-

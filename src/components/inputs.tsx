@@ -58,7 +58,7 @@ export function ChoiceGroup<T extends string>({
             onClick={() => onChange(o.value)}
             className={`flex min-h-14 w-full items-center justify-between gap-3 rounded-xl border px-4 py-3.5 text-left transition-all active:scale-[0.995] ${
               active
-                ? "border-primary bg-positive-soft/70 shadow-card"
+                ? "border-primary bg-primary/15 shadow-card"
                 : "border-border bg-card hover:border-primary/45 hover:bg-surface/60"
             }`}
           >
