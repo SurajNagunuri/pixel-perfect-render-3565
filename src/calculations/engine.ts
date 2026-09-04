@@ -704,6 +704,7 @@ export function generateVerdict(
   const fragile = a.incomeStability === "varies_a_lot" && a.emergencySavings === "lt1";
   const noRoom = safeEmi <= 0 || cashLeft <= 0;
   const wayOver = safeEmi > 0 && requestedEmi > safeEmi * VERDICT_THRESHOLDS.farAboveSafeEmiMultiple;
+  const eatsFreeCash = cashLeft > 0 && requestedEmi > cashLeft;
 
   const flags: string[] = [];
   if (bounce && expensiveDebt)
@@ -711,7 +712,11 @@ export function generateVerdict(
       `you have a missed EMI in the last three months alongside debt priced above ${HIGH_COST_DEBT_RATE_THRESHOLD}%`,
     );
   if (noRoom)
-    flags.push("your income after household expenses and existing EMIs leaves no room for another EMI");
+    flags.push(
+      "after household expenses, insurance, existing EMIs and other recurring commitments there is no room left for another EMI",
+    );
+  if (eatsFreeCash)
+    flags.push("this EMI is larger than all the money left over after your household commitments");
   if (wayOver) flags.push("the EMI on the amount you want is far above what your cash flow can carry");
   if (fragile)
     flags.push("your income swings a lot and there is under a month of savings to absorb a bad month");
