@@ -106,7 +106,7 @@
 }
 
 /* Light mode — same type and geometry, paper instead of stage. */
-html.light {
+.theme-light {
   color-scheme: light;
 
   --background: oklch(0.988 0.002 265);
