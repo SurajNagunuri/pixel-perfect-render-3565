@@ -195,7 +195,7 @@
   background-color: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-2xl);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-card-raw);
 }
 
 /* Luminous keynote glow used behind hero type. */
