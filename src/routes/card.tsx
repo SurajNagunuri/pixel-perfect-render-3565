@@ -154,6 +154,40 @@ function CardPage() {
             </dl>
           </section>
 
+          {/* Household picture — the reason the EMI ceiling is where it is. */}
+          <section className="border-b border-border px-6 py-5 sm:px-9">
+            <p className="eyebrow">My household picture</p>
+            <dl className="mt-3 divide-y divide-border/70">
+              <Row
+                label="Reliable monthly household income"
+                value={`${formatINR(r.cashFlow.reliableHouseholdIncome)} / month`}
+              />
+              <Row
+                label="Household expenses, insurance and existing commitments"
+                value={`${formatINR(
+                  r.cashFlow.householdExpenses +
+                    r.cashFlow.childrenExpenses +
+                    r.cashFlow.insurance +
+                    r.cashFlow.existingEmi +
+                    r.cashFlow.cardDebt +
+                    r.cashFlow.otherCommitments,
+                )} / month`}
+              />
+              <Row label="Left over each month" value={`${formatINR(r.cashFlow.freeCashFlow)} / month`} />
+            </dl>
+            <div className="mt-4 border border-caution bg-caution-soft px-4 py-3">
+              <p className="eyebrow">Why this EMI ceiling?</p>
+              <p className="num mt-1 font-display text-xl">
+                Do not cross {formatINR(r.safeEmi.value)} / month
+              </p>
+              <p className="mt-1.5 text-sm leading-relaxed">
+                {r.bindingConstraint === "cash_flow"
+                  ? `Lending rules would allow about ${formatINR(r.foirSafeEmi)} a month, but after what my household actually spends only ${formatINR(r.cashFlow.emiCapFromCashFlow)} a month fits comfortably.`
+                  : `After my household spending there is ${formatINR(r.cashFlow.freeCashFlow)} a month free, and a safer debt burden limit puts my ceiling at ${formatINR(r.safeEmi.value)} a month.`}
+              </p>
+            </div>
+          </section>
+
           {/* Stress case */}
           <section className="border-b border-border px-6 py-5 sm:px-9">
             <p className="eyebrow">Stress case — {r.stress.kind === "income" ? "if income drops" : "if the rate rises"}</p>
