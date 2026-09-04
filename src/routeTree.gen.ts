@@ -10,33 +10,63 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AssessRouteImport } from './routes/assess'
+import { Route as CardRouteImport } from './routes/card'
+import { Route as ResultsRouteImport } from './routes/results'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AssessRoute = AssessRouteImport.update({
+  id: '/assess',
+  path: '/assess',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CardRoute = CardRouteImport.update({
+  id: '/card',
+  path: '/card',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResultsRoute = ResultsRouteImport.update({
+  id: '/results',
+  path: '/results',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/assess': typeof AssessRoute
+  '/card': typeof CardRoute
+  '/results': typeof ResultsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/assess': typeof AssessRoute
+  '/card': typeof CardRoute
+  '/results': typeof ResultsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/assess': typeof AssessRoute
+  '/card': typeof CardRoute
+  '/results': typeof ResultsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/assess' | '/card' | '/results'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/assess' | '/card' | '/results'
+  id: '__root__' | '/' | '/assess' | '/card' | '/results'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AssessRoute: typeof AssessRoute
+  CardRoute: typeof CardRoute
+  ResultsRoute: typeof ResultsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +78,35 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/assess': {
+      id: '/assess'
+      path: '/assess'
+      fullPath: '/assess'
+      preLoaderRoute: typeof AssessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/card': {
+      id: '/card'
+      path: '/card'
+      fullPath: '/card'
+      preLoaderRoute: typeof CardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/results': {
+      id: '/results'
+      path: '/results'
+      fullPath: '/results'
+      preLoaderRoute: typeof ResultsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AssessRoute: AssessRoute,
+  CardRoute: CardRoute,
+  ResultsRoute: ResultsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
