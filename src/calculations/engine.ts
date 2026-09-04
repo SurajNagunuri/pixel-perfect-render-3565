@@ -265,23 +265,47 @@ export function calculateAffordability(a: Answers) {
       pct: DEBT_LOAD.heavyOutstandingHaircut,
     });
 
-  // Household cash flow uses actual money in hand, not the documented-income discount,
-  // and the "stretched household" test uses the same basis so the two never disagree.
-  const cashLeft = cashIncome - expenses - existing;
-  const cashCap = Math.max(0, cashLeft * HOUSEHOLD.maxShareOfLeftoverCash);
-  if (cashIncome > 0 && expenses > cashIncome * HOUSEHOLD.stretchedExpenseRatio)
+  /*
+   * B. Household cash-flow capacity — a completely separate calculation from FOIR.
+   * Reliable household income, minus every recurring commitment, leaves free cash flow;
+   * only a conservative share of that may go to a new EMI.
+   */
+  const missingAllowance =
+    expenseInfo.missing.length > 0
+      ? Math.round(household.total * UNKNOWN_ALLOWANCES.expenseCategoryShareOfIncome)
+      : 0;
+  const freeCashFlow =
+    household.total - expenses - existing - insurance.total - cardDebt - otherCommitments - missingAllowance;
+  const cashCap = Math.max(0, freeCashFlow * CASH_FLOW_BUFFER.value);
+  const cashLeft = freeCashFlow;
+
+  if (household.total > 0 && expenses > household.total * HOUSEHOLD.stretchedExpenseRatio)
     haircuts.push({
-      label: `household expenses above ${Math.round(HOUSEHOLD.stretchedExpenseRatio * 100)}% of income`,
+      label: `household expenses above ${Math.round(HOUSEHOLD.stretchedExpenseRatio * 100)}% of reliable income`,
       pct: SAFETY_HAIRCUTS.stretchedHousehold,
     });
 
-  let safeEmi = rawSafe;
+  // C. The safe EMI is the lower of the two capacities, then trimmed for fragility signals.
+  const bound = Math.min(rawSafe, cashCap);
+  const bindingConstraint: "debt_service" | "cash_flow" = cashCap < rawSafe ? "cash_flow" : "debt_service";
+  let safeEmi = bound;
   for (const h of haircuts) safeEmi *= 1 - h.pct;
-  const cappedByCash = cashCap < safeEmi;
-  safeEmi = Math.max(0, Math.round(Math.min(safeEmi, cashCap)));
+  safeEmi = Math.max(0, Math.round(safeEmi));
+
+  const assumptions: string[] = [];
+  if (insurance.assumption) assumptions.push(insurance.assumption);
+  if (missingAllowance > 0)
+    assumptions.push(
+      `You skipped ${expenseInfo.missing.join(", ").toLowerCase()}, so we hold back about ₹${missingAllowance.toLocaleString("en-IN")}/month for them rather than assuming they cost nothing — and your safer range stays deliberately wider.`,
+    );
+  if (household.spouseReason) assumptions.push(household.spouseReason);
 
   const reasonParts: string[] = [
-    `Your safer debt-service ceiling is ${Math.round(safeFoir * 100)}% of the ₹${income.value.toLocaleString("en-IN")}/month we can assess${existing > 0 ? `, and ₹${existing.toLocaleString("en-IN")} of that is already committed to existing EMIs` : ""}.`,
+    `Two separate checks. Your lender-style debt-service ceiling is ${Math.round(safeFoir * 100)}% of the ₹${income.value.toLocaleString("en-IN")}/month we can assess${existing > 0 ? `, less the ₹${existing.toLocaleString("en-IN")} already going to existing EMIs` : ""}, which allows about ₹${Math.round(rawSafe).toLocaleString("en-IN")}/month.`,
+    `Your household cash-flow check starts from ₹${Math.round(household.total).toLocaleString("en-IN")}/month of reliable household income, and after household expenses (₹${Math.round(expenses).toLocaleString("en-IN")})${existing > 0 ? `, existing EMIs (₹${existing.toLocaleString("en-IN")})` : ""}${insurance.total > 0 ? `, insurance (₹${insurance.total.toLocaleString("en-IN")})` : ""}${cardDebt > 0 ? `, card payments (₹${cardDebt.toLocaleString("en-IN")})` : ""}${otherCommitments > 0 ? `, other fixed commitments (₹${otherCommitments.toLocaleString("en-IN")})` : ""} you have roughly ₹${Math.max(0, Math.round(freeCashFlow)).toLocaleString("en-IN")}/month of free cash flow. We keep a safety buffer and let only ${Math.round(CASH_FLOW_BUFFER.value * 100)}% of that go to a new EMI — about ₹${Math.round(cashCap).toLocaleString("en-IN")}/month.`,
+    bindingConstraint === "cash_flow"
+      ? "Your safe EMI is limited by household cash flow, not by lender-style eligibility, so we use the lower, safer number."
+      : "Here the debt-service ceiling is the tighter of the two, so that is the number we use.",
   ];
   if (!existingKnown)
     reasonParts.push(
@@ -289,10 +313,7 @@ export function calculateAffordability(a: Answers) {
     );
   if (haircuts.length)
     reasonParts.push(`We then reduced the headroom for ${haircuts.map((h) => h.label).join(", ")}.`);
-  if (cappedByCash)
-    reasonParts.push(
-      `We also capped it so no more than ${Math.round(HOUSEHOLD.maxShareOfLeftoverCash * 100)}% of your leftover household cash (₹${Math.max(0, Math.round(cashLeft)).toLocaleString("en-IN")}/month) goes to a new EMI.`,
-    );
+  if (assumptions.length) reasonParts.push(assumptions.join(" "));
 
   return {
     incomeBasis: income,
@@ -304,11 +325,29 @@ export function calculateAffordability(a: Answers) {
     safeEmi: { value: safeEmi, reason: reasonParts.join(" ") },
     lenderEmi: {
       value: Math.round(rawLender),
-      reason: `A lender may work to a higher ${Math.round(lenderFoir * 100)}% debt-service threshold${existing > 0 ? `, still net of your ₹${existing.toLocaleString("en-IN")} existing EMIs` : ""}, and does not apply borrower-side safety buffers.`,
+      reason: `A lender may work to a higher ${Math.round(lenderFoir * 100)}% debt-service threshold${existing > 0 ? `, still net of your ₹${existing.toLocaleString("en-IN")} existing EMIs` : ""}, looks mainly at debt-service capacity, and does not check whether your household can still live comfortably afterwards.`,
     },
 
     haircuts,
     cashLeft,
+    bindingConstraint,
+    foirSafeEmi: Math.round(rawSafe),
+    cashFlow: {
+      reliableHouseholdIncome: Math.round(household.total),
+      borrowerIncome: Math.round(household.borrower),
+      spouseContribution: Math.round(household.spouse),
+      householdExpenses: Math.round(expenses),
+      childrenExpenses: Math.round(expenseInfo.children),
+      existingEmi: existing,
+      insurance: insurance.total,
+      cardDebt,
+      otherCommitments,
+      freeCashFlow: Math.round(freeCashFlow),
+      emiCapFromCashFlow: Math.round(cashCap),
+      bufferShare: CASH_FLOW_BUFFER.value,
+      missingCategories: expenseInfo.missing,
+      assumptions,
+    },
   };
 }
 
