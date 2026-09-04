@@ -149,12 +149,12 @@
 
 @layer base {
   * {
-    border-color: var(--color-border);
+    border-color: var(--border);
   }
 
   body {
-    background-color: var(--color-background);
-    color: var(--color-foreground);
+    background-color: var(--background);
+    color: var(--foreground);
     font-family: var(--font-sans);
     font-size: 17px;
     line-height: 1.47;
@@ -188,12 +188,12 @@
   letter-spacing: 0.1em;
   text-transform: uppercase;
   font-weight: 590;
-  color: var(--color-muted-foreground);
+  color: var(--muted-foreground);
 }
 
 @utility panel {
-  background-color: var(--color-card);
-  border: 1px solid var(--color-border);
+  background-color: var(--card);
+  border: 1px solid var(--border);
   border-radius: var(--radius-2xl);
   box-shadow: var(--shadow-card);
 }
