@@ -1,12 +1,11 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, Info } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, ArrowRight, Info, Lock } from "lucide-react";
 import { Page } from "@/components/SiteShell";
 import { ChoiceGroup, MoneyInput, PlainInput, QuestionShell, SkipButton } from "@/components/inputs";
-import { sampleBorrowers } from "@/data/sampleBorrowers";
-import { replaceAnswers, setAnswers, useAnswers } from "@/lib/store";
+import { setAnswers, useAnswers } from "@/lib/store";
 import { formatINR } from "@/lib/inr";
-import { CREDIT_SCORE_RANGE } from "@/rules/rules";
+import { CREDIT_SCORE_RANGE, HIGH_COST_DEBT_RATE_THRESHOLD } from "@/rules/rules";
 import { validateAge } from "@/calculations/engine";
 import type { Answers } from "@/types";
 
@@ -34,25 +33,91 @@ type StepId =
   | "amount"
   | "incomeType"
   | "income"
+  | "stability"
+  | "employmentTenure"
+  | "variablePct"
+  | "businessVintage"
+  | "documented"
+  | "collateral"
+  | "collateralValue"
+  | "highCostDebt"
+  | "bounce"
   | "existingEmi"
-  | "debtDetail"
+  | "debtCount"
+  | "debtOutstanding"
+  | "debtRate"
   | "expenses"
+  | "savings"
   | "age"
   | "credit"
-  | "salaried"
-  | "selfEmployed"
-  | "informal"
-  | "savings"
-  | "offer";
+  | "creditScore"
+  | "offer"
+  | "offerDetail";
 
+type Section = "Your plan" | "Your income" | "Your commitments" | "Your cushion" | "Your quote";
+
+const SECTIONS: Section[] = ["Your plan", "Your income", "Your commitments", "Your cushion", "Your quote"];
+
+const SECTION_OF: Record<StepId, Section> = {
+  purpose: "Your plan",
+  amount: "Your plan",
+  incomeType: "Your income",
+  income: "Your income",
+  stability: "Your income",
+  employmentTenure: "Your income",
+  variablePct: "Your income",
+  businessVintage: "Your income",
+  documented: "Your income",
+  collateral: "Your income",
+  collateralValue: "Your income",
+  existingEmi: "Your commitments",
+  debtCount: "Your commitments",
+  debtOutstanding: "Your commitments",
+  debtRate: "Your commitments",
+  highCostDebt: "Your commitments",
+  bounce: "Your commitments",
+  expenses: "Your commitments",
+  savings: "Your cushion",
+  age: "Your cushion",
+  credit: "Your cushion",
+  creditScore: "Your cushion",
+  offer: "Your quote",
+  offerDetail: "Your quote",
+};
+
+/** Steps that are answered with a single tap, so we can advance automatically. */
+const AUTO_ADVANCE: StepId[] = [
+  "purpose",
+  "incomeType",
+  "stability",
+  "employmentTenure",
+  "variablePct",
+  "businessVintage",
+  "debtRate",
+  "highCostDebt",
+  "bounce",
+  "savings",
+];
+
+/** Adaptive branching: a borrower only ever sees questions that change their result. */
 function visibleSteps(a: Answers): StepId[] {
-  const steps: StepId[] = ["purpose", "amount", "incomeType", "income", "existingEmi"];
-  if ((a.existingEmi ?? 0) > 0) steps.push("debtDetail");
-  steps.push("expenses", "age", "credit");
-  if (a.incomeType === "salaried" || a.incomeType === "mixed") steps.push("salaried");
-  if (a.incomeType === "self_employed" || a.incomeType === "mixed") steps.push("selfEmployed");
-  if (a.incomeType === "informal") steps.push("informal");
-  steps.push("savings", "offer");
+  const steps: StepId[] = ["purpose", "amount", "incomeType", "income", "stability"];
+
+  if (a.incomeType === "salaried" || a.incomeType === "mixed") steps.push("employmentTenure", "variablePct");
+  if (a.incomeType === "self_employed" || a.incomeType === "mixed") {
+    steps.push("businessVintage", "documented", "collateral");
+    if (a.hasCollateral === true) steps.push("collateralValue");
+  }
+  if (a.incomeType === "informal") steps.push("highCostDebt", "bounce");
+
+  steps.push("existingEmi");
+  if ((a.existingEmi ?? 0) > 0) steps.push("debtCount", "debtOutstanding", "debtRate");
+
+  steps.push("expenses", "savings", "age", "credit");
+  if (a.creditKnown === "yes") steps.push("creditScore");
+
+  steps.push("offer");
+  if (a.hasOffer === true) steps.push("offerDetail");
   return steps;
 }
 
@@ -62,7 +127,15 @@ function Assess() {
   const [index, setIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const steps = useMemo(() => visibleSteps(a), [a]);
-  const step: StepId = steps[Math.min(index, steps.length - 1)] ?? "purpose";
+  const clamped = Math.min(index, steps.length - 1);
+  const step: StepId = steps[clamped] ?? "purpose";
+  const topRef = useRef<HTMLDivElement>(null);
+
+  // Any change to an answer clears the error — validation should never nag.
+  useEffect(() => setError(null), [a]);
+  useEffect(() => {
+    topRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [clamped]);
 
   function next() {
     const err = validate(step, a);
@@ -70,131 +143,165 @@ function Assess() {
       setError(err);
       return;
     }
-    setError(null);
-    if (index >= steps.length - 1) {
+    if (clamped >= steps.length - 1) {
       navigate({ to: "/results" });
       return;
     }
-    setIndex(index + 1);
+    setIndex(clamped + 1);
   }
 
   function back() {
-    setError(null);
-    if (index === 0) navigate({ to: "/" });
-    else setIndex(index - 1);
+    if (clamped === 0) navigate({ to: "/" });
+    else setIndex(clamped - 1);
   }
 
-  const progress = ((index + 1) / steps.length) * 100;
+  /** Tapping a single-choice answer is the answer — no extra Continue tap needed. */
+  function answered() {
+    if (!AUTO_ADVANCE.includes(step)) return;
+    window.setTimeout(() => setIndex((i) => Math.min(i + 1, visibleSteps(a).length)), 160);
+  }
+
+  const currentSection = SECTION_OF[step];
+  const sectionIndex = SECTIONS.indexOf(currentSection);
+  const progress = ((clamped + 1) / steps.length) * 100;
+  const last = clamped >= steps.length - 1;
 
   return (
-    <Page>
-      <div className="mx-auto max-w-2xl px-5 py-10 sm:py-14">
-        <div className="flex items-center justify-between text-sm">
-          <span className="eyebrow">
-            Step {index + 1} of {steps.length}
+    <Page bare>
+      <div ref={topRef} className="mx-auto max-w-xl px-5 pb-40 pt-6 sm:pb-16 sm:pt-10">
+        {/* Progress */}
+        <div className="flex items-center gap-1.5">
+          {SECTIONS.map((s, i) => (
+            <span
+              key={s}
+              aria-hidden
+              className={`h-1 flex-1 rounded-full transition-colors ${
+                i < sectionIndex ? "bg-primary" : i === sectionIndex ? "bg-primary/45" : "bg-muted"
+              }`}
+            />
+          ))}
+        </div>
+        <div className="mt-2.5 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+          <p className="eyebrow truncate">{currentSection}</p>
+          <p className="num shrink-0 text-xs text-muted-foreground">
+            {clamped + 1} / {steps.length}
+          </p>
+        </div>
+        <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-muted sm:hidden">
+          <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }} />
+        </div>
+
+        <div className="mt-8 sm:mt-10">
+          <StepBody step={step} a={a} onAnswered={answered} />
+          {error ? null : null}
+        </div>
+
+        {/* Desktop nav */}
+        <div className="mt-9 hidden items-center gap-3 sm:flex">
+          <NavButtons back={back} next={next} last={last} error={error} />
+        </div>
+
+        <p className="mt-10 hidden items-start gap-2 text-xs leading-relaxed text-muted-foreground sm:flex">
+          <Lock className="mt-0.5 size-3.5 shrink-0" />
+          <span>
+            Nothing you type leaves your browser.{" "}
+            <Link to="/rules" className="underline underline-offset-4">
+              See how we calculate this
+            </Link>
+            .
           </span>
-          <select
-            aria-label="Load sample borrower"
-            className="rounded-md border border-input bg-card px-2.5 py-1.5 text-xs text-muted-foreground"
-            defaultValue=""
-            onChange={(e) => {
-              const s = sampleBorrowers.find((b) => b.id === e.target.value);
-              if (s) {
-                replaceAnswers(s.answers);
-                navigate({ to: "/results" });
-              }
-            }}
-          >
-            <option value="">Load sample borrower…</option>
-            {sampleBorrowers.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name.split(",")[0]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-          <div
-            className="h-full rounded-full bg-primary transition-all duration-300"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-
-        <div className="mt-10">
-          <StepBody step={step} a={a} />
-        </div>
-
-        <div className="mt-8 flex items-center gap-3">
-          <button
-            type="button"
-            onClick={back}
-            className="inline-flex items-center gap-2 rounded-md border border-input px-4 py-3 text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ArrowLeft className="size-4" /> Back
-          </button>
-          <button
-            type="button"
-            onClick={next}
-            className="inline-flex flex-1 items-center justify-center gap-2 rounded-md bg-primary px-5 py-3 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
-          >
-            {index >= steps.length - 1 ? "See my position" : "Continue"}
-            <ArrowRight className="size-4" />
-          </button>
-        </div>
-        {error ? <p className="mt-3 text-sm font-medium text-danger">{error}</p> : null}
-
-        <p className="mt-10 text-xs leading-relaxed text-muted-foreground">
-          Nothing you type leaves your browser. Read{" "}
-          <Link to="/rules" className="underline underline-offset-4">
-            how we calculate this
-          </Link>
-          .
         </p>
       </div>
+
+      {/* Mobile sticky nav — thumb-reachable */}
+      <div className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 px-5 pb-5 pt-3 backdrop-blur sm:hidden">
+        <NavButtons back={back} next={next} last={last} error={error} />
+      </div>
     </Page>
+  );
+}
+
+function NavButtons({
+  back,
+  next,
+  last,
+  error,
+}: {
+  back: () => void;
+  next: () => void;
+  last: boolean;
+  error: string | null;
+}) {
+  return (
+    <div className="w-full">
+      {error ? (
+        <p role="alert" className="mb-2.5 text-sm font-medium text-danger">
+          {error}
+        </p>
+      ) : null}
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={back}
+          aria-label="Back"
+          className="inline-flex size-12 shrink-0 items-center justify-center rounded-xl border border-input text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="size-4" />
+        </button>
+        <button
+          type="button"
+          onClick={next}
+          className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+        >
+          {last ? "See my position" : "Continue"}
+          <ArrowRight className="size-4" />
+        </button>
+      </div>
+    </div>
   );
 }
 
 function validate(step: StepId, a: Answers): string | null {
   switch (step) {
     case "purpose":
-      return a.purpose ? null : "Please pick what you're borrowing for.";
+      return a.purpose ? null : "Pick what you're borrowing for.";
     case "amount":
-      if (a.amount === null) return "Please enter the amount you're planning to borrow.";
+      if (a.amount === null) return "Enter the amount you're planning to borrow.";
       if (a.amount <= 0) return "The amount must be greater than zero.";
-      if (a.amount > 100000000) return "That amount looks too large — please check it.";
+      if (a.amount > 100000000) return "That looks too large — please check the number of zeroes.";
       return null;
     case "incomeType":
-      return a.incomeType ? null : "Please pick your income type.";
+      return a.incomeType ? null : "Pick your income type.";
     case "income":
-      if (a.monthlyIncome === null) return "Please enter your usual monthly income.";
+      if (a.monthlyIncome === null) return "Enter your usual monthly income.";
       if (a.monthlyIncome <= 0) return "Monthly income must be greater than zero.";
-      if (!a.incomeStability) return "Please tell us how stable that income is.";
       return null;
+    case "stability":
+      return a.incomeStability ? null : "Tell us how stable that income is.";
+    case "collateral":
+      return a.hasCollateral === null ? "Choose yes or no." : null;
+    case "bounce":
+      return a.recentBounce === null ? "Choose one option." : null;
     case "existingEmi":
-      return a.existingEmi === null ? "Enter your current EMIs, or choose 'I don't have any EMIs'." : null;
+      return a.existingEmi === null ? "Enter your current EMIs, or tap “I have no EMIs”." : null;
     case "expenses":
-      if (a.householdExpenses === null) return "Please estimate your monthly household spending.";
+      if (a.householdExpenses === null) return "Estimate your monthly household spending.";
       if (a.householdExpenses < 0) return "Expenses cannot be negative.";
       return null;
     case "age":
       return validateAge(a.age);
     case "credit":
-      if (!a.creditKnown) return "Please choose one option.";
-      if (a.creditKnown === "yes") {
-        if (a.creditScore === null) return "Please enter your credit score, or choose another option.";
-        if (a.creditScore < CREDIT_SCORE_RANGE.min || a.creditScore > CREDIT_SCORE_RANGE.max)
-          return `Credit scores run from ${CREDIT_SCORE_RANGE.min} to ${CREDIT_SCORE_RANGE.max}.`;
-      }
+      return a.creditKnown ? null : "Choose one option.";
+    case "creditScore":
+      if (a.creditScore === null) return "Enter your score, or go back and choose “I don't know”.";
+      if (a.creditScore < CREDIT_SCORE_RANGE.min || a.creditScore > CREDIT_SCORE_RANGE.max)
+        return `Credit scores run from ${CREDIT_SCORE_RANGE.min} to ${CREDIT_SCORE_RANGE.max}.`;
       return null;
-    case "selfEmployed":
-      return a.hasCollateral === null ? "Please answer the collateral question." : null;
-    case "informal":
-      return a.recentBounce === null ? "Please answer the missed-payment question." : null;
     case "offer":
-      if (a.hasOffer === null) return "Please choose yes or no.";
-      if (a.hasOffer && (a.offerRate === null || a.offerAmount === null || a.offerTenureMonths === null))
-        return "Please fill in the rate, amount and tenure of the quote.";
+      return a.hasOffer === null ? "Choose yes or no." : null;
+    case "offerDetail":
+      if (a.offerRate === null || a.offerAmount === null || a.offerTenureMonths === null)
+        return "Fill in the rate, amount and tenure of the quote.";
       return null;
     default:
       return null;
@@ -203,33 +310,46 @@ function validate(step: StepId, a: Answers): string | null {
 
 function Note({ children }: { children: React.ReactNode }) {
   return (
-    <p className="flex gap-2 rounded-md bg-surface px-3.5 py-3 text-xs leading-relaxed text-muted-foreground">
+    <p className="flex gap-2 rounded-xl bg-surface px-3.5 py-3 text-xs leading-relaxed text-muted-foreground">
       <Info className="mt-0.5 size-3.5 shrink-0" />
       <span>{children}</span>
     </p>
   );
 }
 
-function StepBody({ step, a }: { step: StepId; a: Answers }) {
+function StepBody({
+  step,
+  a,
+  onAnswered,
+}: {
+  step: StepId;
+  a: Answers;
+  onAnswered: () => void;
+}) {
+  const pick = <K extends keyof Answers>(patch: Pick<Answers, K>) => {
+    setAnswers(patch);
+    onAnswered();
+  };
+
   switch (step) {
     case "purpose":
       return (
         <QuestionShell
           label="What are you borrowing for?"
-          hint="The purpose changes the realistic rate band and tenure, so it's the first thing we ask."
+          hint="Purpose sets the realistic rate band and tenure, so it's the first thing we ask."
         >
           <ChoiceGroup
             columns={2}
             value={a.purpose}
-            onChange={(purpose) => setAnswers({ purpose })}
+            onChange={(purpose) => pick({ purpose })}
             options={[
               { value: "home", label: "Home" },
-              { value: "personal", label: "Personal / wedding / education" },
+              { value: "personal", label: "Personal", sub: "Wedding, education, medical" },
               { value: "vehicle", label: "Vehicle" },
-              { value: "business", label: "Business / working capital" },
+              { value: "business", label: "Business", sub: "Working capital, expansion" },
               { value: "against_property", label: "Against property" },
               { value: "gold", label: "Gold" },
-              { value: "other", label: "Other" },
+              { value: "other", label: "Something else" },
             ]}
           />
         </QuestionShell>
@@ -239,31 +359,32 @@ function StepBody({ step, a }: { step: StepId; a: Answers }) {
       return (
         <QuestionShell
           label="How much are you planning to borrow?"
-          hint="Your best estimate is fine. We'll tell you whether it sits inside your safer range."
+          hint="A rough figure is fine. We'll tell you whether it sits inside your safer range."
         >
           <MoneyInput
+            autoFocus
             value={a.amount}
             onChange={(amount) => setAnswers({ amount })}
             placeholder="8,00,000"
+            quickAdd={[200000, 500000, 1000000, 2500000]}
           />
-          {a.amount ? <Note>You entered {formatINR(a.amount)}.</Note> : null}
         </QuestionShell>
       );
 
     case "incomeType":
       return (
         <QuestionShell
-          label="What type of income do you have?"
-          hint="Lenders assess salaried, self-employed and cash income very differently."
+          label="How do you earn?"
+          hint="Salaried, self-employed and cash income are assessed very differently."
         >
           <ChoiceGroup
             value={a.incomeType}
-            onChange={(incomeType) => setAnswers({ incomeType })}
+            onChange={(incomeType) => pick({ incomeType })}
             options={[
-              { value: "salaried", label: "Salaried" },
-              { value: "self_employed", label: "Self-employed" },
-              { value: "informal", label: "Informal / gig / cash-based" },
-              { value: "mixed", label: "Mixed income" },
+              { value: "salaried", label: "Salaried", sub: "Monthly pay from an employer" },
+              { value: "self_employed", label: "Self-employed", sub: "Business or professional income" },
+              { value: "informal", label: "Informal / gig / cash", sub: "Daily or irregular earnings" },
+              { value: "mixed", label: "A mix of these" },
             ]}
           />
         </QuestionShell>
@@ -274,39 +395,206 @@ function StepBody({ step, a }: { step: StepId; a: Answers }) {
         <QuestionShell
           label={
             a.incomeType === "salaried"
-              ? "What is your usual monthly take-home income?"
-              : "What is your typical monthly income?"
+              ? "What's your usual monthly take-home pay?"
+              : "What do you typically earn in a month?"
           }
-          hint="After tax and deductions — what actually reaches you in a normal month."
+          hint="What actually reaches you in a normal month, after tax and deductions."
         >
           <MoneyInput
+            autoFocus
             value={a.monthlyIncome}
             onChange={(monthlyIncome) => setAnswers({ monthlyIncome })}
             placeholder="1,10,000"
             suffix="/month"
+            quickAdd={[30000, 60000, 110000, 250000]}
           />
-          <div className="pt-2">
-            <p className="mb-2.5 text-sm font-medium">How stable is that income?</p>
-            <ChoiceGroup
-              value={a.incomeStability}
-              onChange={(incomeStability) => setAnswers({ incomeStability })}
-              options={[
-                { value: "stable", label: "Stable" },
-                { value: "varies_some", label: "Varies somewhat" },
-                { value: "varies_a_lot", label: "Varies significantly" },
-              ]}
-            />
-          </div>
+        </QuestionShell>
+      );
+
+    case "stability":
+      return (
+        <QuestionShell
+          label="How steady is that income?"
+          hint="A swing month is what breaks an EMI, so this changes how much buffer we leave you."
+        >
+          <ChoiceGroup
+            value={a.incomeStability}
+            onChange={(incomeStability) => pick({ incomeStability })}
+            options={[
+              { value: "stable", label: "Steady every month" },
+              { value: "varies_some", label: "Varies a little" },
+              { value: "varies_a_lot", label: "Varies a lot", sub: "Good months and bad months" },
+            ]}
+          />
+        </QuestionShell>
+      );
+
+    case "employmentTenure":
+      return (
+        <QuestionShell label="How long have you been working?" hint="Longer tenure earns a better starting rate.">
+          <ChoiceGroup
+            columns={2}
+            value={a.employmentTenure}
+            onChange={(employmentTenure) => pick({ employmentTenure })}
+            options={[
+              { value: "lt1", label: "Under 1 year" },
+              { value: "1to3", label: "1–3 years" },
+              { value: "3to5", label: "3–5 years" },
+              { value: "5to10", label: "5+ years" },
+            ]}
+          />
+        </QuestionShell>
+      );
+
+    case "variablePct":
+      return (
+        <QuestionShell
+          label="How much of your pay is variable?"
+          hint="Bonus, incentives and commissions — lenders count these only partly."
+        >
+          <ChoiceGroup
+            columns={2}
+            value={a.variableIncomePct}
+            onChange={(variableIncomePct) => pick({ variableIncomePct })}
+            options={[
+              { value: "0", label: "None — fully fixed" },
+              { value: "lt10", label: "Under 10%" },
+              { value: "10to25", label: "10–25%" },
+              { value: "gt25", label: "Over 25%" },
+              { value: "unknown", label: "I'm not sure" },
+            ]}
+          />
+        </QuestionShell>
+      );
+
+    case "businessVintage":
+      return (
+        <QuestionShell label="How long has your business been running?" hint="Vintage is what lenders trust most.">
+          <ChoiceGroup
+            columns={2}
+            value={a.businessVintage}
+            onChange={(businessVintage) => pick({ businessVintage })}
+            options={[
+              { value: "lt1", label: "Under 1 year" },
+              { value: "1to3", label: "1–3 years" },
+              { value: "3to5", label: "3–5 years" },
+              { value: "5to10", label: "5–10 years" },
+              { value: "10plus", label: "10+ years" },
+            ]}
+          />
+        </QuestionShell>
+      );
+
+    case "documented":
+      return (
+        <QuestionShell
+          label="How much of your income is visible in your ITR?"
+          hint="Lenders size a loan on documented income, not on cash takings. Both matter, differently."
+        >
+          <MoneyInput
+            value={a.documentedAnnualIncome}
+            onChange={(documentedAnnualIncome) => setAnswers({ documentedAnnualIncome })}
+            placeholder="4,20,000"
+            suffix="/year"
+          />
+          {a.documentedAnnualIncome ? (
+            <Note>
+              About {formatINR(a.documentedAnnualIncome / 12)}/month documented, against{" "}
+              {formatINR(a.monthlyIncome)}/month you actually earn.
+            </Note>
+          ) : (
+            <SkipButton onClick={() => setAnswers({ documentedAnnualIncome: null })}>
+              I don't know / nothing documented
+            </SkipButton>
+          )}
+        </QuestionShell>
+      );
+
+    case "collateral":
+      return (
+        <QuestionShell
+          label="Do you have property or gold you could pledge?"
+          hint="Collateral usually moves you to a cheaper secured loan. We'll price it that way if you do."
+        >
+          <ChoiceGroup
+            value={a.hasCollateral === null ? null : a.hasCollateral ? "yes" : "no"}
+            onChange={(v) => {
+              setAnswers({
+                hasCollateral: v === "yes",
+                collateralValue: v === "yes" ? a.collateralValue : null,
+              });
+              if (v === "no") onAnswered();
+            }}
+            options={[
+              { value: "yes", label: "Yes, I could pledge something" },
+              { value: "no", label: "No" },
+            ]}
+          />
+        </QuestionShell>
+      );
+
+    case "collateralValue":
+      return (
+        <QuestionShell
+          label="Roughly what is it worth today?"
+          hint="A lender will typically lend a fraction of this value, so it caps what they can offer."
+        >
+          <MoneyInput
+            autoFocus
+            value={a.collateralValue}
+            onChange={(collateralValue) => setAnswers({ collateralValue })}
+            placeholder="45,00,000"
+            quickAdd={[500000, 2000000, 4500000]}
+          />
+          <SkipButton onClick={() => setAnswers({ hasCollateral: false, collateralValue: null })}>
+            Skip — I'd rather not pledge it
+          </SkipButton>
+        </QuestionShell>
+      );
+
+    case "highCostDebt":
+      return (
+        <QuestionShell
+          label={`Is any loan of yours charging over ${HIGH_COST_DEBT_RATE_THRESHOLD}% a year?`}
+          hint="App loans and card EMIs often are. Clearing these frees more room than a new loan gives you."
+        >
+          <ChoiceGroup
+            value={a.highCostDebt === null ? null : a.highCostDebt ? "yes" : "no"}
+            onChange={(v) => pick({ highCostDebt: v === "yes" })}
+            options={[
+              { value: "yes", label: "Yes", sub: "App loans or very high rates" },
+              { value: "no", label: "No" },
+            ]}
+          />
+        </QuestionShell>
+      );
+
+    case "bounce":
+      return (
+        <QuestionShell
+          label="Have you missed or bounced an EMI recently?"
+          hint="An honest answer here protects you — it's the single biggest pricing penalty."
+        >
+          <ChoiceGroup
+            value={a.recentBounce}
+            onChange={(recentBounce) => pick({ recentBounce })}
+            options={[
+              { value: "no", label: "No" },
+              { value: "yes_3m", label: "Yes, in the last 3 months" },
+              { value: "unknown", label: "I'm not sure" },
+            ]}
+          />
         </QuestionShell>
       );
 
     case "existingEmi":
       return (
         <QuestionShell
-          label="How much do you currently pay toward loans each month?"
-          hint="Include every EMI: car, home, personal, gold, app loans, credit-card EMIs."
+          label="What do you pay toward loans each month right now?"
+          hint="Every EMI counts: car, home, personal, gold, app loans, card EMIs."
         >
           <MoneyInput
+            autoFocus
             value={a.existingEmi}
             onChange={(existingEmi) => setAnswers({ existingEmi })}
             placeholder="14,000"
@@ -322,75 +610,106 @@ function StepBody({ step, a }: { step: StepId; a: Answers }) {
               })
             }
           >
-            I don't currently have any EMIs
+            I have no EMIs
           </SkipButton>
         </QuestionShell>
       );
 
-    case "debtDetail":
+    case "debtCount":
+      return (
+        <QuestionShell label="How many loans are running?" hint="Several loans at once reads as stacked borrowing.">
+          <PlainInput
+            autoFocus
+            value={a.activeLoans}
+            onChange={(activeLoans) => setAnswers({ activeLoans })}
+            placeholder="2"
+            suffix="loans"
+          />
+          <SkipButton onClick={() => setAnswers({ activeLoans: null })}>I'd rather not say</SkipButton>
+        </QuestionShell>
+      );
+
+    case "debtOutstanding":
       return (
         <QuestionShell
-          label="Tell us about the loans you already have"
-          hint="Expensive existing debt changes the recommendation more than almost anything else."
+          label="Roughly how much is still outstanding on them?"
+          hint="A rough total is fine — it tells us how long your current EMIs will run."
         >
-          <div className="space-y-5">
-            <div>
-              <p className="mb-2 text-sm font-medium">Number of active loans</p>
-              <PlainInput
-                value={a.activeLoans}
-                onChange={(activeLoans) => setAnswers({ activeLoans })}
-                placeholder="1"
-              />
-            </div>
-            <div>
-              <p className="mb-2 text-sm font-medium">Approximate outstanding principal</p>
-              <MoneyInput
-                value={a.outstandingPrincipal}
-                onChange={(outstandingPrincipal) => setAnswers({ outstandingPrincipal })}
-                placeholder="3,00,000"
-              />
-            </div>
-            <div>
-              <p className="mb-2 text-sm font-medium">Highest interest rate among them</p>
-              <ChoiceGroup
-                columns={2}
-                value={a.highestExistingRate}
-                onChange={(highestExistingRate) =>
-                  setAnswers({
-                    highestExistingRate,
-                    highCostDebt:
-                      highestExistingRate === "24to30" || highestExistingRate === "gt30"
-                        ? true
-                        : highestExistingRate === "unknown"
-                          ? a.highCostDebt
-                          : false,
-                  })
-                }
-                options={[
-                  { value: "lt12", label: "Under 12%" },
-                  { value: "12to18", label: "12–18%" },
-                  { value: "18to24", label: "18–24%" },
-                  { value: "24to30", label: "24–30%" },
-                  { value: "gt30", label: "Over 30%" },
-                  { value: "unknown", label: "Don't know" },
-                ]}
-              />
-            </div>
-          </div>
+          <MoneyInput
+            value={a.outstandingPrincipal}
+            onChange={(outstandingPrincipal) => setAnswers({ outstandingPrincipal })}
+            placeholder="3,00,000"
+          />
+          <SkipButton onClick={() => setAnswers({ outstandingPrincipal: null })}>I don't know</SkipButton>
+        </QuestionShell>
+      );
+
+    case "debtRate":
+      return (
+        <QuestionShell
+          label="What's the highest rate among them?"
+          hint="If something is priced very high, refinancing it beats borrowing more."
+        >
+          <ChoiceGroup
+            columns={2}
+            value={a.highestExistingRate}
+            onChange={(highestExistingRate) =>
+              pick({
+                highestExistingRate,
+                highCostDebt:
+                  highestExistingRate === "24to30" || highestExistingRate === "gt30"
+                    ? true
+                    : highestExistingRate === "unknown"
+                      ? a.highCostDebt
+                      : false,
+              })
+            }
+            options={[
+              { value: "lt12", label: "Under 12%" },
+              { value: "12to18", label: "12–18%" },
+              { value: "18to24", label: "18–24%" },
+              { value: "24to30", label: "24–30%" },
+              { value: "gt30", label: "Over 30%" },
+              { value: "unknown", label: "I don't know" },
+            ]}
+          />
         </QuestionShell>
       );
 
     case "expenses":
       return (
         <QuestionShell
-          label="About how much does your household spend each month, excluding existing EMIs?"
-          hint="Rent, food, utilities, school fees, transport, insurance and regular household spending."
+          label="What does your household spend each month?"
+          hint="Rent, food, utilities, fees, transport, insurance — everything except the EMIs you just told us about."
         >
           <MoneyInput
+            autoFocus
             value={a.householdExpenses}
             onChange={(householdExpenses) => setAnswers({ householdExpenses })}
             placeholder="45,000"
             suffix="/month"
+            quickAdd={[20000, 45000, 80000]}
+          />
+        </QuestionShell>
+      );
+
+    case "savings":
+      return (
+        <QuestionShell
+          label="How long could your savings cover essentials?"
+          hint="This is the difference between a tight month and a missed EMI."
+        >
+          <ChoiceGroup
+            columns={2}
+            value={a.emergencySavings}
+            onChange={(emergencySavings) => pick({ emergencySavings })}
+            options={[
+              { value: "lt1", label: "Under a month" },
+              { value: "1to3", label: "1–3 months" },
+              { value: "3to6", label: "3–6 months" },
+              { value: "6plus", label: "6+ months" },
+              { value: "unknown", label: "I'd rather not say" },
+            ]}
           />
         </QuestionShell>
       );
@@ -399,9 +718,9 @@ function StepBody({ step, a }: { step: StepId; a: Answers }) {
       return (
         <QuestionShell
           label="How old are you?"
-          hint="Age caps the tenure a lender will offer, which changes the EMI on the same amount."
+          hint="Age caps how long a lender will let the loan run, which changes the EMI on the same amount."
         >
-          <PlainInput value={a.age} onChange={(age) => setAnswers({ age })} placeholder="29" suffix="years" />
+          <PlainInput autoFocus value={a.age} onChange={(age) => setAnswers({ age })} placeholder="29" suffix="years" />
         </QuestionShell>
       );
 
@@ -410,261 +729,102 @@ function StepBody({ step, a }: { step: StepId; a: Answers }) {
         <QuestionShell label="Do you know your credit score?">
           <ChoiceGroup
             value={a.creditKnown}
-            onChange={(creditKnown) =>
-              setAnswers({ creditKnown, creditScore: creditKnown === "yes" ? a.creditScore : null })
-            }
+            onChange={(creditKnown) => {
+              setAnswers({ creditKnown, creditScore: creditKnown === "yes" ? a.creditScore : null });
+              if (creditKnown !== "yes") onAnswered();
+            }}
             options={[
-              { value: "yes", label: "Yes" },
-              { value: "no", label: "No" },
-              { value: "prefer_not", label: "Prefer not to say" },
+              { value: "yes", label: "Yes, I know it" },
+              { value: "no", label: "No, I've never checked" },
+              { value: "prefer_not", label: "I'd rather not say" },
             ]}
           />
-          {a.creditKnown === "yes" ? (
-            <PlainInput
-              value={a.creditScore}
-              onChange={(creditScore) => setAnswers({ creditScore })}
-              placeholder="780"
-            />
-          ) : null}
           <Note>
-            We won't treat an unknown score as a bad score. We simply have less information, so your rate
-            range stays wider.
+            An unknown score is not a bad score. We simply have less information, so your rate range stays
+            wider instead of guessing against you.
           </Note>
         </QuestionShell>
       );
 
-    case "salaried":
+    case "creditScore":
       return (
-        <QuestionShell
-          label="A little more about your job"
-          hint="Tenure and how much of your pay is variable both change your assessed income."
-        >
-          <div className="space-y-5">
-            <div>
-              <p className="mb-2 text-sm font-medium">How long have you been employed?</p>
-              <ChoiceGroup
-                columns={2}
-                value={a.employmentTenure}
-                onChange={(employmentTenure) => setAnswers({ employmentTenure })}
-                options={[
-                  { value: "lt1", label: "Under 1 year" },
-                  { value: "1to3", label: "1–3 years" },
-                  { value: "3to5", label: "3–5 years" },
-                  { value: "5to10", label: "5+ years" },
-                ]}
-              />
-            </div>
-            <div>
-              <p className="mb-2 text-sm font-medium">
-                What percentage of your monthly income is variable?
-              </p>
-              <ChoiceGroup
-                columns={2}
-                value={a.variableIncomePct}
-                onChange={(variableIncomePct) => setAnswers({ variableIncomePct })}
-                options={[
-                  { value: "0", label: "0% — fully fixed" },
-                  { value: "lt10", label: "Under 10%" },
-                  { value: "10to25", label: "10–25%" },
-                  { value: "gt25", label: "Over 25%" },
-                  { value: "unknown", label: "Don't know" },
-                ]}
-              />
-            </div>
-          </div>
-        </QuestionShell>
-      );
-
-    case "selfEmployed":
-      return (
-        <QuestionShell
-          label="About your business"
-          hint="Lenders lend against documented income, not cash income. Both matter, differently."
-        >
-          <div className="space-y-5">
-            <div>
-              <p className="mb-2 text-sm font-medium">How long has the business been operating?</p>
-              <ChoiceGroup
-                columns={2}
-                value={a.businessVintage}
-                onChange={(businessVintage) => setAnswers({ businessVintage })}
-                options={[
-                  { value: "lt1", label: "Under 1 year" },
-                  { value: "1to3", label: "1–3 years" },
-                  { value: "3to5", label: "3–5 years" },
-                  { value: "5to10", label: "5–10 years" },
-                  { value: "10plus", label: "10+ years" },
-                ]}
-              />
-            </div>
-            <div>
-              <p className="mb-2 text-sm font-medium">
-                Approximately how much annual income is visible in your ITR / financial records?
-              </p>
-              <MoneyInput
-                value={a.documentedAnnualIncome}
-                onChange={(documentedAnnualIncome) => setAnswers({ documentedAnnualIncome })}
-                placeholder="4,20,000"
-                suffix="/year"
-              />
-              {a.documentedAnnualIncome ? (
-                <Note>
-                  That's about {formatINR(a.documentedAnnualIncome / 12)}/month of documented income —
-                  separate from your cash/business income of {formatINR(a.monthlyIncome)}/month.
-                </Note>
-              ) : (
-                <div className="mt-2">
-                  <SkipButton onClick={() => setAnswers({ documentedAnnualIncome: null })}>
-                    I don't know / nothing documented
-                  </SkipButton>
-                </div>
-              )}
-            </div>
-            <div>
-              <p className="mb-2 text-sm font-medium">
-                Do you have property or other collateral you could pledge?
-              </p>
-              <ChoiceGroup
-                value={a.hasCollateral === null ? null : a.hasCollateral ? "yes" : "no"}
-                onChange={(v) =>
-                  setAnswers({ hasCollateral: v === "yes", collateralValue: v === "yes" ? a.collateralValue : null })
-                }
-                options={[
-                  { value: "yes", label: "Yes" },
-                  { value: "no", label: "No" },
-                ]}
-              />
-              {a.hasCollateral ? (
-                <div className="mt-3">
-                  <p className="mb-2 text-sm font-medium">Estimated current value</p>
-                  <MoneyInput
-                    value={a.collateralValue}
-                    onChange={(collateralValue) => setAnswers({ collateralValue })}
-                    placeholder="45,00,000"
-                  />
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </QuestionShell>
-      );
-
-    case "informal":
-      return (
-        <QuestionShell
-          label="A few questions about your current loans"
-          hint="These are the signals that most affect whether borrowing now is safe."
-        >
-          <div className="space-y-5">
-            <div>
-              <p className="mb-2 text-sm font-medium">
-                Do any of your existing loans charge roughly more than 24% a year?
-              </p>
-              <ChoiceGroup
-                value={a.highCostDebt === null ? null : a.highCostDebt ? "yes" : "no"}
-                onChange={(v) => setAnswers({ highCostDebt: v === "yes" })}
-                options={[
-                  { value: "yes", label: "Yes — app loans / very high rates" },
-                  { value: "no", label: "No" },
-                ]}
-              />
-            </div>
-            <div>
-              <p className="mb-2 text-sm font-medium">
-                Have you missed or bounced an EMI recently?
-              </p>
-              <ChoiceGroup
-                value={a.recentBounce}
-                onChange={(recentBounce) => setAnswers({ recentBounce })}
-                options={[
-                  { value: "no", label: "No" },
-                  { value: "yes_3m", label: "Yes, within the last 3 months" },
-                  { value: "unknown", label: "Don't know" },
-                ]}
-              />
-            </div>
-          </div>
-        </QuestionShell>
-      );
-
-    case "savings":
-      return (
-        <QuestionShell
-          label="How many months of essential expenses could your savings cover?"
-          hint="This decides how much buffer we leave you. It's the difference between a tight month and a missed EMI."
-        >
-          <ChoiceGroup
-            columns={2}
-            value={a.emergencySavings}
-            onChange={(emergencySavings) => setAnswers({ emergencySavings })}
-            options={[
-              { value: "lt1", label: "Less than 1 month" },
-              { value: "1to3", label: "1–3 months" },
-              { value: "3to6", label: "3–6 months" },
-              { value: "6plus", label: "6+ months" },
-              { value: "unknown", label: "Prefer not to say" },
-            ]}
+        <QuestionShell label="What's your score?" hint="Anywhere from 300 to 900. A rough recall is fine.">
+          <PlainInput
+            autoFocus
+            value={a.creditScore}
+            onChange={(creditScore) => setAnswers({ creditScore })}
+            placeholder="780"
           />
+          <SkipButton onClick={() => setAnswers({ creditKnown: "no", creditScore: null })}>
+            Actually, I don't know it
+          </SkipButton>
         </QuestionShell>
       );
 
     case "offer":
       return (
         <QuestionShell
-          label="Have you already received a loan quote?"
-          hint="If yes, we'll compare it against the fair range for your profile and work out its real all-in cost."
+          label="Has a lender already quoted you something?"
+          hint="If yes, we'll check it against the fair range for your profile and work out its real all-in cost."
         >
           <ChoiceGroup
             value={a.hasOffer === null ? null : a.hasOffer ? "yes" : "no"}
-            onChange={(v) => setAnswers({ hasOffer: v === "yes" })}
+            onChange={(v) => {
+              setAnswers({ hasOffer: v === "yes" });
+              if (v === "no") onAnswered();
+            }}
             options={[
-              { value: "yes", label: "Yes" },
-              { value: "no", label: "No, not yet" },
+              { value: "yes", label: "Yes, I have a quote" },
+              { value: "no", label: "Not yet" },
             ]}
           />
-          {a.hasOffer ? (
-            <div className="space-y-4 pt-2">
-              <div>
-                <p className="mb-2 text-sm font-medium">Interest rate quoted</p>
-                <PlainInput
-                  step="0.1"
-                  value={a.offerRate}
-                  onChange={(offerRate) => setAnswers({ offerRate })}
-                  placeholder="13.5"
-                  suffix="% per year"
-                />
-              </div>
-              <div>
-                <p className="mb-2 text-sm font-medium">Processing fee</p>
-                <MoneyInput
-                  value={a.offerFee}
-                  onChange={(offerFee) => setAnswers({ offerFee })}
-                  placeholder="12,000"
-                />
-              </div>
-              <div>
-                <p className="mb-2 text-sm font-medium">Tenure</p>
-                <PlainInput
-                  value={a.offerTenureMonths}
-                  onChange={(offerTenureMonths) => setAnswers({ offerTenureMonths })}
-                  placeholder="48"
-                  suffix="months"
-                />
-              </div>
-              <div>
-                <p className="mb-2 text-sm font-medium">Amount offered</p>
-                <MoneyInput
-                  value={a.offerAmount}
-                  onChange={(offerAmount) => setAnswers({ offerAmount })}
-                  placeholder="8,00,000"
-                />
-              </div>
-            </div>
-          ) : null}
+        </QuestionShell>
+      );
+
+    case "offerDetail":
+      return (
+        <QuestionShell label="What does the quote say?" hint="Copy it straight from the sanction letter or message.">
+          <div className="space-y-5">
+            <Field label="Interest rate quoted">
+              <PlainInput
+                step="0.1"
+                value={a.offerRate}
+                onChange={(offerRate) => setAnswers({ offerRate })}
+                placeholder="13.5"
+                suffix="% per year"
+              />
+            </Field>
+            <Field label="Amount offered">
+              <MoneyInput value={a.offerAmount} onChange={(offerAmount) => setAnswers({ offerAmount })} placeholder="8,00,000" />
+            </Field>
+            <Field label="Tenure">
+              <PlainInput
+                value={a.offerTenureMonths}
+                onChange={(offerTenureMonths) => setAnswers({ offerTenureMonths })}
+                placeholder="48"
+                suffix="months"
+              />
+            </Field>
+            <Field label="Processing fee" optional>
+              <MoneyInput value={a.offerFee} onChange={(offerFee) => setAnswers({ offerFee })} placeholder="12,000" />
+            </Field>
+          </div>
         </QuestionShell>
       );
 
     default:
       return null;
   }
+}
+
+function Field({ label, optional, children }: { label: string; optional?: boolean; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="mb-2 text-sm font-medium">
+        {label}
+        {optional ? <span className="ml-1.5 text-xs font-normal text-muted-foreground">optional</span> : null}
+      </p>
+      {children}
+    </div>
+  );
 }
