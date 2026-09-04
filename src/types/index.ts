@@ -23,6 +23,32 @@ export type Bounce = "no" | "yes_3m" | "unknown";
 
 export type CreditKnown = "yes" | "no" | "prefer_not";
 
+export type MaritalStatus = "single" | "married" | "prefer_not";
+
+export type DependentCount = "0" | "1" | "2" | "3" | "4plus";
+
+export type ChildCount = "0" | "1" | "2" | "3plus";
+
+export type YesNoUnknown = "yes" | "no" | "unknown";
+
+export type SpouseContributes = "regular" | "sometimes" | "no" | "prefer_not";
+
+export type SpouseShare = "most" | "half" | "smaller" | "unsure";
+
+/** Household expense categories, asked one screen at a time. */
+export interface ExpenseBreakdown {
+  housing: number | null;
+  food: number | null;
+  utilities: number | null;
+  transport: number | null;
+  education: number | null;
+  medical: number | null;
+  dependentSupport: number | null;
+  other: number | null;
+}
+
+export type ExpenseCategory = keyof ExpenseBreakdown;
+
 export interface Answers {
   purpose: Purpose | null;
   amount: number | null;
@@ -30,8 +56,33 @@ export interface Answers {
   monthlyIncome: number | null;
   incomeStability: Stability | null;
   existingEmi: number | null; // 0 allowed, null = unknown
+  /** Legacy single-figure household spend; used only when the breakdown is untouched. */
   householdExpenses: number | null;
+  expenses: ExpenseBreakdown;
   age: number | null;
+
+  // household shape
+  maritalStatus: MaritalStatus | null;
+  numberOfDependents: DependentCount | null;
+  childrenCount: ChildCount | null;
+  childrenMonthlyExpenses: number | null;
+
+  // insurance & protection
+  hasInsurance: YesNoUnknown | null;
+  insuranceHealth: number | null;
+  insuranceLife: number | null;
+  insuranceOther: number | null;
+
+  // spouse contribution
+  spouseContributes: SpouseContributes | null;
+  spouseIncome: number | null;
+  spouseReliableContribution: SpouseShare | null;
+
+  // other recurring obligations
+  hasCardDebt: boolean | null;
+  cardDebtMonthly: number | null;
+  hasOtherCommitments: boolean | null;
+  otherFixedCommitments: number | null;
   creditKnown: CreditKnown | null;
   creditScore: number | null;
 
@@ -111,7 +162,33 @@ export interface Assessment {
     foir: number;
     safeFoirTarget: number;
     note: string;
+    /** Free cash flow left if reliable income drops by the stress assumption. */
+    stressedFreeCashFlow: number;
+    stressedNote: string;
   };
+
+  /** Borrower-side monthly money flow — the second, cash-flow view of affordability. */
+  cashFlow: {
+    reliableHouseholdIncome: number;
+    borrowerIncome: number;
+    spouseContribution: number;
+    householdExpenses: number;
+    childrenExpenses: number;
+    existingEmi: number;
+    insurance: number;
+    cardDebt: number;
+    otherCommitments: number;
+    freeCashFlow: number;
+    emiCapFromCashFlow: number;
+    bufferShare: number;
+    /** Categories the borrower left blank, so the range is deliberately wider. */
+    missingCategories: string[];
+    assumptions: string[];
+  };
+
+  /** Which of the two calculations set the safe EMI. */
+  bindingConstraint: "debt_service" | "cash_flow";
+  foirSafeEmi: number;
   foirNow: number;
   reasons: string[];
   nextSteps: string[];

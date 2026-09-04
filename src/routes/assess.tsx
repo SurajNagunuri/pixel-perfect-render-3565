@@ -5,9 +5,9 @@ import { Page } from "@/components/SiteShell";
 import { ChoiceGroup, MoneyInput, PlainInput, QuestionShell, SkipButton } from "@/components/inputs";
 import { setAnswers, useAnswers } from "@/lib/store";
 import { formatINR } from "@/lib/inr";
-import { CREDIT_SCORE_RANGE, HIGH_COST_DEBT_RATE_THRESHOLD } from "@/rules/rules";
+import { CREDIT_SCORE_RANGE, EXPENSE_LABELS, HIGH_COST_DEBT_RATE_THRESHOLD } from "@/rules/rules";
 import { validateAge } from "@/calculations/engine";
-import type { Answers } from "@/types";
+import type { Answers, ExpenseCategory } from "@/types";
 
 export const Route = createFileRoute("/assess")({
   head: () => ({
@@ -42,11 +42,24 @@ type StepId =
   | "collateralValue"
   | "highCostDebt"
   | "bounce"
+  | "family"
+  | "dependents"
+  | "children"
+  | "childrenSpend"
+  | "spouse"
+  | "spouseIncome"
+  | "spouseShare"
   | "existingEmi"
   | "debtCount"
   | "debtOutstanding"
   | "debtRate"
+  | "cardDebt"
+  | "cardDebtAmount"
   | "expenses"
+  | "insurance"
+  | "insuranceDetail"
+  | "commitments"
+  | "commitmentsAmount"
   | "savings"
   | "age"
   | "credit"
@@ -54,9 +67,22 @@ type StepId =
   | "offer"
   | "offerDetail";
 
-type Section = "Your plan" | "Your income" | "Your commitments" | "Your cushion" | "Your quote";
+type Section =
+  | "Your plan"
+  | "Your income"
+  | "Your household"
+  | "Your commitments"
+  | "Your cushion"
+  | "Your quote";
 
-const SECTIONS: Section[] = ["Your plan", "Your income", "Your commitments", "Your cushion", "Your quote"];
+const SECTIONS: Section[] = [
+  "Your plan",
+  "Your income",
+  "Your household",
+  "Your commitments",
+  "Your cushion",
+  "Your quote",
+];
 
 const SECTION_OF: Record<StepId, Section> = {
   purpose: "Your plan",
@@ -70,13 +96,26 @@ const SECTION_OF: Record<StepId, Section> = {
   documented: "Your income",
   collateral: "Your income",
   collateralValue: "Your income",
+  family: "Your household",
+  dependents: "Your household",
+  children: "Your household",
+  childrenSpend: "Your household",
+  spouse: "Your household",
+  spouseIncome: "Your household",
+  spouseShare: "Your household",
+  expenses: "Your household",
   existingEmi: "Your commitments",
   debtCount: "Your commitments",
   debtOutstanding: "Your commitments",
   debtRate: "Your commitments",
+  cardDebt: "Your commitments",
+  cardDebtAmount: "Your commitments",
+  insurance: "Your commitments",
+  insuranceDetail: "Your commitments",
+  commitments: "Your commitments",
+  commitmentsAmount: "Your commitments",
   highCostDebt: "Your commitments",
   bounce: "Your commitments",
-  expenses: "Your commitments",
   savings: "Your cushion",
   age: "Your cushion",
   credit: "Your cushion",
@@ -97,6 +136,10 @@ const AUTO_ADVANCE: StepId[] = [
   "highCostDebt",
   "bounce",
   "savings",
+  "family",
+  "dependents",
+  "children",
+  "spouseShare",
 ];
 
 /** Adaptive branching: a borrower only ever sees questions that change their result. */
@@ -110,10 +153,29 @@ function visibleSteps(a: Answers): StepId[] {
   }
   if (a.incomeType === "informal") steps.push("highCostDebt", "bounce");
 
+  // Household shape: asked after income, because it changes cash-flow capacity, not pricing.
+  steps.push("family", "dependents");
+  const hasDependents = a.numberOfDependents !== null && a.numberOfDependents !== "0";
+  if (a.maritalStatus === "married" || hasDependents) steps.push("children");
+  if (a.childrenCount !== null && a.childrenCount !== "0") steps.push("childrenSpend");
+  if (a.maritalStatus === "married") {
+    steps.push("spouse");
+    if (a.spouseContributes === "regular" || a.spouseContributes === "sometimes")
+      steps.push("spouseIncome", "spouseShare");
+  }
+  steps.push("expenses");
+
   steps.push("existingEmi");
   if ((a.existingEmi ?? 0) > 0) steps.push("debtCount", "debtOutstanding", "debtRate");
+  steps.push("cardDebt");
+  if (a.hasCardDebt === true) steps.push("cardDebtAmount");
 
-  steps.push("expenses", "savings", "age", "credit");
+  steps.push("insurance");
+  if (a.hasInsurance === "yes") steps.push("insuranceDetail");
+  steps.push("commitments");
+  if (a.hasOtherCommitments === true) steps.push("commitmentsAmount");
+
+  steps.push("savings", "age", "credit");
   if (a.creditKnown === "yes") steps.push("creditScore");
 
   steps.push("offer");
@@ -284,10 +346,36 @@ function validate(step: StepId, a: Answers): string | null {
       return a.recentBounce === null ? "Choose one option." : null;
     case "existingEmi":
       return a.existingEmi === null ? "Enter your current EMIs, or tap “I have no EMIs”." : null;
-    case "expenses":
-      if (a.householdExpenses === null) return "Estimate your monthly household spending.";
-      if (a.householdExpenses < 0) return "Expenses cannot be negative.";
+    case "family":
+      return a.maritalStatus === null ? "Choose one option." : null;
+    case "dependents":
+      return a.numberOfDependents === null ? "Choose one option." : null;
+    case "children":
+      return a.childrenCount === null ? "Choose one option." : null;
+    case "childrenSpend":
       return null;
+    case "spouse":
+      return a.spouseContributes === null ? "Choose one option." : null;
+    case "spouseIncome":
+      return null;
+    case "spouseShare":
+      return a.spouseReliableContribution === null ? "Choose one option." : null;
+    case "expenses": {
+      const filled = Object.values(a.expenses).some((v) => v !== null);
+      if (!filled && a.householdExpenses === null)
+        return "Fill in at least one expense — a rough estimate is fine.";
+      return null;
+    }
+    case "insurance":
+      return a.hasInsurance === null ? "Choose one option." : null;
+    case "cardDebt":
+      return a.hasCardDebt === null ? "Choose yes or no." : null;
+    case "cardDebtAmount":
+      return a.cardDebtMonthly === null ? "Enter a rough monthly payment." : null;
+    case "commitments":
+      return a.hasOtherCommitments === null ? "Choose yes or no." : null;
+    case "commitmentsAmount":
+      return a.otherFixedCommitments === null ? "Enter a rough monthly amount." : null;
     case "age":
       return validateAge(a.age);
     case "credit":
@@ -676,19 +764,286 @@ function StepBody({
         </QuestionShell>
       );
 
+    case "family":
+      return (
+        <QuestionShell
+          label="Who else depends on this income?"
+          hint="This changes how much of your income is genuinely free for an EMI."
+        >
+          <ChoiceGroup
+            columns={1}
+            value={a.maritalStatus}
+            onChange={(maritalStatus) => pick({ maritalStatus })}
+            options={[
+              { value: "single", label: "I'm single", sub: "One income, one set of essentials" },
+              { value: "married", label: "I'm married", sub: "We'll ask about your spouse's income next" },
+              { value: "prefer_not", label: "I'd rather not say" },
+            ]}
+          />
+        </QuestionShell>
+      );
+
+    case "dependents":
+      return (
+        <QuestionShell
+          label="How many people depend on you financially?"
+          hint="Parents, siblings, anyone whose essentials you cover. Don't count yourself."
+        >
+          <ChoiceGroup
+            columns={3}
+            value={a.numberOfDependents}
+            onChange={(numberOfDependents) => pick({ numberOfDependents })}
+            options={[
+              { value: "0", label: "None" },
+              { value: "1", label: "1" },
+              { value: "2", label: "2" },
+              { value: "3", label: "3" },
+              { value: "4plus", label: "4 or more" },
+            ]}
+          />
+        </QuestionShell>
+      );
+
+    case "children":
+      return (
+        <QuestionShell label="How many children do you support?" hint="School-going or younger.">
+          <ChoiceGroup
+            columns={4}
+            value={a.childrenCount}
+            onChange={(childrenCount) => pick({ childrenCount })}
+            options={[
+              { value: "0", label: "None" },
+              { value: "1", label: "1" },
+              { value: "2", label: "2" },
+              { value: "3plus", label: "3+" },
+            ]}
+          />
+        </QuestionShell>
+      );
+
+    case "childrenSpend":
+      return (
+        <QuestionShell
+          label="Roughly what do your children cost each month?"
+          hint="School fees spread over the year, tuition, transport, clothes, medical. A rough figure is fine."
+        >
+          <MoneyInput
+            autoFocus
+            value={a.childrenMonthlyExpenses}
+            onChange={(childrenMonthlyExpenses) => setAnswers({ childrenMonthlyExpenses })}
+            placeholder="12,000"
+            suffix="/month"
+            quickAdd={[5000, 12000, 25000]}
+          />
+          <SkipButton onClick={() => setAnswers({ childrenMonthlyExpenses: null })}>
+            I don't know
+          </SkipButton>
+          <Note>
+            We count this as a real household cost, not a penalty for having children. It lowers the EMI we
+            think is comfortable, and nothing else.
+          </Note>
+        </QuestionShell>
+      );
+
+    case "spouse":
+      return (
+        <QuestionShell
+          label="Does your spouse contribute to household money?"
+          hint="We only count income that reliably reaches your household."
+        >
+          <ChoiceGroup
+            columns={1}
+            value={a.spouseContributes}
+            onChange={(spouseContributes) => pick({ spouseContributes })}
+            options={[
+              { value: "regular", label: "Yes, every month" },
+              { value: "sometimes", label: "Sometimes / irregular" },
+              { value: "no", label: "No" },
+              { value: "prefer_not", label: "I'd rather not say" },
+            ]}
+          />
+        </QuestionShell>
+      );
+
+    case "spouseIncome":
+      return (
+        <QuestionShell
+          label="What does your spouse earn each month?"
+          hint="We won't treat all of it as available — the next question decides how much of it we count."
+        >
+          <MoneyInput
+            autoFocus
+            value={a.spouseIncome}
+            onChange={(spouseIncome) => setAnswers({ spouseIncome })}
+            placeholder="30,000"
+            suffix="/month"
+            quickAdd={[15000, 30000, 60000]}
+          />
+          <SkipButton onClick={() => setAnswers({ spouseIncome: null })}>I'd rather not say</SkipButton>
+        </QuestionShell>
+      );
+
+    case "spouseShare":
+      return (
+        <QuestionShell
+          label="How much of that reaches household expenses?"
+          hint="Money that goes to their own loans, family or savings is not available for your EMI."
+        >
+          <ChoiceGroup
+            columns={2}
+            value={a.spouseReliableContribution}
+            onChange={(spouseReliableContribution) => pick({ spouseReliableContribution })}
+            options={[
+              { value: "most", label: "Most of it" },
+              { value: "half", label: "About half" },
+              { value: "smaller", label: "A smaller part" },
+              { value: "unsure", label: "I'm not sure" },
+            ]}
+          />
+        </QuestionShell>
+      );
+
     case "expenses":
       return (
         <QuestionShell
           label="What does your household spend each month?"
-          hint="Rent, food, utilities, fees, transport, insurance — everything except the EMIs you just told us about."
+          hint="Fill in what you know — leave the rest blank. Anything you skip is replaced with a small safety allowance, not zero."
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            {(Object.keys(EXPENSE_LABELS) as ExpenseCategory[]).map((k) => (
+              <Field key={k} label={EXPENSE_LABELS[k]} optional>
+                <MoneyInput
+                  value={a.expenses[k]}
+                  onChange={(v) => setAnswers({ expenses: { ...a.expenses, [k]: v } })}
+                  placeholder="0"
+                  suffix="/month"
+                />
+              </Field>
+            ))}
+          </div>
+          <Note>
+            Excludes the loan EMIs and insurance we ask about separately, so nothing is counted twice.
+          </Note>
+        </QuestionShell>
+      );
+
+    case "cardDebt":
+      return (
+        <QuestionShell
+          label="Are you carrying a credit card balance or app loan?"
+          hint="Revolving balances are the most expensive money most households hold."
+        >
+          <ChoiceGroup
+            columns={2}
+            value={a.hasCardDebt === null ? null : a.hasCardDebt ? "yes" : "no"}
+            onChange={(v) => pick({ hasCardDebt: v === "yes" })}
+            options={[
+              { value: "yes", label: "Yes" },
+              { value: "no", label: "No" },
+            ]}
+          />
+        </QuestionShell>
+      );
+
+    case "cardDebtAmount":
+      return (
+        <QuestionShell
+          label="What do you pay towards it each month?"
+          hint="The amount that actually leaves your account, including minimum dues."
         >
           <MoneyInput
             autoFocus
-            value={a.householdExpenses}
-            onChange={(householdExpenses) => setAnswers({ householdExpenses })}
-            placeholder="45,000"
+            value={a.cardDebtMonthly}
+            onChange={(cardDebtMonthly) => setAnswers({ cardDebtMonthly })}
+            placeholder="8,000"
             suffix="/month"
-            quickAdd={[20000, 45000, 80000]}
+            quickAdd={[3000, 8000, 20000]}
+          />
+        </QuestionShell>
+      );
+
+    case "insurance":
+      return (
+        <QuestionShell
+          label="Do you pay insurance premiums?"
+          hint="Insurance is protection, never debt — it only affects how much cash is free each month."
+        >
+          <ChoiceGroup
+            columns={1}
+            value={a.hasInsurance}
+            onChange={(hasInsurance) => pick({ hasInsurance })}
+            options={[
+              { value: "yes", label: "Yes" },
+              { value: "no", label: "No cover at all", sub: "We'll flag this as a risk, not a rate factor" },
+              { value: "unknown", label: "I don't know" },
+            ]}
+          />
+        </QuestionShell>
+      );
+
+    case "insuranceDetail":
+      return (
+        <QuestionShell
+          label="Roughly what do the premiums come to?"
+          hint="Monthly equivalent — divide a yearly premium by 12. Leave blank what you don't have."
+        >
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field label="Health" optional>
+              <MoneyInput
+                value={a.insuranceHealth}
+                onChange={(insuranceHealth) => setAnswers({ insuranceHealth })}
+                placeholder="0"
+                suffix="/month"
+              />
+            </Field>
+            <Field label="Life / term" optional>
+              <MoneyInput
+                value={a.insuranceLife}
+                onChange={(insuranceLife) => setAnswers({ insuranceLife })}
+                placeholder="0"
+                suffix="/month"
+              />
+            </Field>
+            <Field label="Other" optional>
+              <MoneyInput
+                value={a.insuranceOther}
+                onChange={(insuranceOther) => setAnswers({ insuranceOther })}
+                placeholder="0"
+                suffix="/month"
+              />
+            </Field>
+          </div>
+        </QuestionShell>
+      );
+
+    case "commitments":
+      return (
+        <QuestionShell
+          label="Any other fixed monthly commitments?"
+          hint="Chit fund, recurring deposit, maintenance, alimony, money sent home — anything you can't easily stop."
+        >
+          <ChoiceGroup
+            columns={2}
+            value={a.hasOtherCommitments === null ? null : a.hasOtherCommitments ? "yes" : "no"}
+            onChange={(v) => pick({ hasOtherCommitments: v === "yes" })}
+            options={[
+              { value: "yes", label: "Yes" },
+              { value: "no", label: "No" },
+            ]}
+          />
+        </QuestionShell>
+      );
+
+    case "commitmentsAmount":
+      return (
+        <QuestionShell label="How much do they add up to each month?">
+          <MoneyInput
+            autoFocus
+            value={a.otherFixedCommitments}
+            onChange={(otherFixedCommitments) => setAnswers({ otherFixedCommitments })}
+            placeholder="6,000"
+            suffix="/month"
+            quickAdd={[2000, 6000, 15000]}
           />
         </QuestionShell>
       );
