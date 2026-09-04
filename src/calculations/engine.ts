@@ -141,7 +141,8 @@ export function calculateAffordability(a: Answers) {
   if (a.highCostDebt === true || (highestRate !== null && highestRate >= 24))
     haircuts.push({ label: "existing debt above 24%", pct: SAFETY_HAIRCUTS.highCostDebt });
 
-  const cashLeft = income.value - expenses - existing;
+  // Household cash flow uses actual money in hand, not the documented-income discount.
+  const cashLeft = Math.max(income.value, a.monthlyIncome ?? 0) - expenses - existing;
   const cashCap = Math.max(0, cashLeft * 0.7);
   if (expenses > income.value * 0.6)
     haircuts.push({ label: "household expenses above 60% of income", pct: SAFETY_HAIRCUTS.stretchedHousehold });
