@@ -5,9 +5,9 @@ import { Page } from "@/components/SiteShell";
 import { ChoiceGroup, MoneyInput, PlainInput, QuestionShell, SkipButton } from "@/components/inputs";
 import { setAnswers, useAnswers } from "@/lib/store";
 import { formatINR } from "@/lib/inr";
-import { CREDIT_SCORE_RANGE, HIGH_COST_DEBT_RATE_THRESHOLD } from "@/rules/rules";
+import { CREDIT_SCORE_RANGE, EXPENSE_LABELS, HIGH_COST_DEBT_RATE_THRESHOLD } from "@/rules/rules";
 import { validateAge } from "@/calculations/engine";
-import type { Answers } from "@/types";
+import type { Answers, ExpenseCategory } from "@/types";
 
 export const Route = createFileRoute("/assess")({
   head: () => ({
@@ -777,8 +777,8 @@ function StepBody({
             value={a.maritalStatus}
             onChange={(maritalStatus) => pick({ maritalStatus })}
             options={[
-              { value: "single", label: "I'm single", hint: "One income, one set of essentials" },
-              { value: "married", label: "I'm married", hint: "We'll ask about your spouse's income next" },
+              { value: "single", label: "I'm single", sub: "One income, one set of essentials" },
+              { value: "married", label: "I'm married", sub: "We'll ask about your spouse's income next" },
               { value: "prefer_not", label: "I'd rather not say" },
             ]}
           />
@@ -972,7 +972,7 @@ function StepBody({
             onChange={(hasInsurance) => pick({ hasInsurance })}
             options={[
               { value: "yes", label: "Yes" },
-              { value: "no", label: "No cover at all", hint: "We'll flag this as a risk, not a rate factor" },
+              { value: "no", label: "No cover at all", sub: "We'll flag this as a risk, not a rate factor" },
               { value: "unknown", label: "I don't know" },
             ]}
           />
