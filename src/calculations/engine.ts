@@ -239,12 +239,12 @@ export function calculateAffordability(a: Answers) {
   const haircuts: { label: string; pct: number }[] = [];
   if (a.variableIncomePct === "gt25")
     haircuts.push({ label: "over 25% of income is variable", pct: SAFETY_HAIRCUTS.variableIncomeHigh });
-  if (a.incomeStability === "varies_a_lot")
-    haircuts.push({ label: "income varies significantly", pct: SAFETY_HAIRCUTS.incomeVariesALot });
+  const stability = a.incomeStability ? INCOME_STABILITY_ADJUSTMENTS[a.incomeStability] : null;
+  if (stability && stability.haircut > 0) haircuts.push({ label: stability.note, pct: stability.haircut });
   if (a.recentBounce === "yes_3m")
     haircuts.push({ label: "a missed EMI in the last 3 months", pct: SAFETY_HAIRCUTS.recentBounce });
-  if (a.emergencySavings === "lt1")
-    haircuts.push({ label: "under 1 month of emergency savings", pct: SAFETY_HAIRCUTS.lowSavings });
+  const buffer = a.emergencySavings ? EMERGENCY_BUFFER_ADJUSTMENTS[a.emergencySavings] : null;
+  if (buffer && buffer.haircut > 0) haircuts.push({ label: buffer.note, pct: buffer.haircut });
   if (hasExpensiveExistingDebt(a))
     haircuts.push({
       label: `existing debt above ${HIGH_COST_DEBT_RATE_THRESHOLD}%`,
