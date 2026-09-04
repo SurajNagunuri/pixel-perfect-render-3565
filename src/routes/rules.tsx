@@ -89,6 +89,30 @@ function Rules() {
         />
 
         <Section
+          title="Household cash flow"
+          tag="Prototype judgement"
+          body="We run two independent calculations and use whichever is lower. The first is a debt-service limit against assessed income. The second is your household cash flow: reliable income minus household expenses, children's costs, insurance premiums, existing EMIs, card or app loan payments and other fixed commitments — and we treat only about 60% of what's left as available for a new EMI."
+        >
+          <ul className="space-y-1.5 text-sm text-muted-foreground">
+            <li>
+              Insurance is protection, never debt: it reduces free cash but never changes the rate band.
+            </li>
+            <li>
+              A spouse's income counts only to the extent it reliably reaches the household — regular counts
+              in full, occasional at 60%, and only the share you say reaches household expenses.
+            </li>
+            <li>
+              Children's costs and the education expense line overlap, so we count the larger of the two
+              rather than adding both.
+            </li>
+            <li>
+              Blank expense categories are never treated as zero: we hold back a small allowance (about 3% of
+              income per missing category, 2% when insurance is unknown) and widen the range instead.
+            </li>
+          </ul>
+        </Section>
+
+        <Section
           title="Safe EMI haircuts"
           tag="Prototype judgement"
           body="After applying the safer ceiling, we reduce the remaining headroom for fragility signals, and cap the new EMI at 70% of household cash left after expenses and existing EMIs."
