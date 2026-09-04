@@ -130,6 +130,80 @@ export const HOUSEHOLD = {
   stretchedExpenseRatio: 0.6,
 };
 
+/**
+ * Cash-flow capacity: after every recurring household commitment, only part of the
+ * remaining money should ever go to a new EMI. This is the borrower-safety buffer.
+ */
+export const CASH_FLOW_BUFFER = {
+  value: 0.6,
+  reason:
+    "A new EMI should never consume all of your free cash flow — we leave at least 40% of it for irregular costs, festivals, repairs and medical bills.",
+  type: "my judgement" as const,
+};
+
+/** Only income that reliably reaches the household counts toward repayment. */
+export const SPOUSE_CONTRIBUTION = {
+  /** How dependable the spouse's earning itself is. */
+  regularity: { regular: 1, sometimes: 0.6, no: 0, prefer_not: 0 },
+  /** How much of that income actually funds household costs and repayment. */
+  share: { most: 0.75, half: 0.5, smaller: 0.25, unsure: 0.25 },
+  reason:
+    "We never count 100% of a spouse's income. We count the part that reliably reaches the household, and uncertain contribution widens confidence instead of raising capacity.",
+  type: "my judgement" as const,
+};
+
+/**
+ * Emergency savings moderate the safe EMI — a thin cushion is what turns a tight
+ * month into a missed EMI. Borrower-safety judgement, not a regulatory rule.
+ */
+export const EMERGENCY_BUFFER_ADJUSTMENTS: Record<
+  Savings,
+  { haircut: number; note: string; confidence: "raise" | "neutral" | "widen" }
+> = {
+  lt1: {
+    haircut: 0.1,
+    note: "under 1 month of essential expenses saved",
+    confidence: "neutral",
+  },
+  "1to3": { haircut: 0.05, note: "1–3 months of expenses saved", confidence: "neutral" },
+  "3to6": { haircut: 0, note: "3–6 months of expenses saved", confidence: "neutral" },
+  "6plus": { haircut: 0, note: "6+ months of expenses saved", confidence: "raise" },
+  unknown: { haircut: 0, note: "savings cushion unknown", confidence: "widen" },
+};
+
+/** Income steadiness moderates the cash-flow buffer as well as confidence. */
+export const INCOME_STABILITY_ADJUSTMENTS: Record<
+  Stability,
+  { haircut: number; note: string }
+> = {
+  stable: { haircut: 0, note: "steady monthly income" },
+  varies_some: { haircut: 0.05, note: "income varies a little month to month" },
+  varies_a_lot: { haircut: 0.15, note: "income varies a lot month to month" },
+};
+
+/**
+ * Unknown is never zero. When a recurring commitment is unknown we hold back a
+ * small, clearly-labelled allowance instead of pretending it does not exist.
+ */
+export const UNKNOWN_ALLOWANCES = {
+  insuranceShareOfIncome: 0.02,
+  expenseCategoryShareOfIncome: 0.03,
+  reason:
+    "Where you skipped a recurring cost we hold back a small allowance rather than assume zero, and we say so.",
+  type: "my judgement" as const,
+};
+
+export const EXPENSE_LABELS = {
+  housing: "Housing / rent",
+  food: "Food and groceries",
+  utilities: "Utilities",
+  transport: "Transport",
+  education: "Education / childcare",
+  medical: "Medical / healthcare",
+  dependentSupport: "Support for parents / dependents",
+  other: "Other regular household expenses",
+} as const;
+
 /** Loan-to-value cap a lender is likely to work to against pledged collateral. */
 export const COLLATERAL = {
   ltvCap: 0.6,
