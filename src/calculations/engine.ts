@@ -138,6 +138,83 @@ export function householdCashIncome(a: Answers, assessed: number): number {
   return Math.max(assessed, a.monthlyIncome ?? 0);
 }
 
+/* ---------- household picture ---------- */
+
+/** Total monthly household spending, plus the categories the borrower left blank. */
+export function householdExpenseTotal(a: Answers): {
+  total: number;
+  children: number;
+  missing: string[];
+  usedLegacy: boolean;
+} {
+  const entries = Object.entries(a.expenses) as [ExpenseCategory, number | null][];
+  const answered = entries.filter(([, v]) => v !== null);
+  const children = a.childrenMonthlyExpenses ?? 0;
+
+  if (answered.length === 0) {
+    // Older answers (or a skipped section) may only carry a single combined figure.
+    return {
+      total: (a.householdExpenses ?? 0) + children,
+      children,
+      missing: a.householdExpenses === null ? ["all household expense categories"] : [],
+      usedLegacy: a.householdExpenses !== null,
+    };
+  }
+  const total = answered.reduce((sum, [, v]) => sum + (v as number), 0) + children;
+  const missing = entries
+    .filter(([k, v]) => v === null && !(k === "education" && children > 0))
+    .map(([k]) => EXPENSE_LABELS[k]);
+  return { total, children, missing, usedLegacy: false };
+}
+
+/**
+ * Insurance premiums are recurring household commitments, never debt: they reduce the
+ * money available for a new EMI but they never enter the FOIR calculation.
+ */
+export function insurancePremiumTotal(
+  a: Answers,
+  income: number,
+): { total: number; known: boolean; assumption: string | null } {
+  if (a.hasInsurance === "yes") {
+    const total = (a.insuranceHealth ?? 0) + (a.insuranceLife ?? 0) + (a.insuranceOther ?? 0);
+    if (total > 0) return { total, known: true, assumption: null };
+  }
+  if (a.hasInsurance === "no") return { total: 0, known: true, assumption: null };
+  const allowance = Math.round(income * UNKNOWN_ALLOWANCES.insuranceShareOfIncome);
+  return {
+    total: allowance,
+    known: false,
+    assumption: `Insurance premiums unknown, so instead of assuming zero we hold back about ₹${allowance.toLocaleString("en-IN")}/month (${Math.round(UNKNOWN_ALLOWANCES.insuranceShareOfIncome * 100)}% of income) as a placeholder.`,
+  };
+}
+
+/** Only the part of a spouse's income that reliably reaches the household. */
+export function spouseContribution(a: Answers): { value: number; reason: string | null } {
+  if (a.maritalStatus !== "married" || a.spouseContributes === null) return { value: 0, reason: null };
+  const regularity = SPOUSE_CONTRIBUTION.regularity[a.spouseContributes];
+  if (regularity === 0 || a.spouseIncome === null)
+    return {
+      value: 0,
+      reason:
+        a.spouseContributes === "prefer_not"
+          ? "You preferred not to share spouse income, so we count none of it. That keeps the estimate conservative rather than optimistic."
+          : null,
+    };
+  const share = SPOUSE_CONTRIBUTION.share[a.spouseReliableContribution ?? "unsure"];
+  const value = Math.round(a.spouseIncome * regularity * share);
+  return {
+    value,
+    reason: `Your spouse earns about ₹${a.spouseIncome.toLocaleString("en-IN")}/month. We count ₹${value.toLocaleString("en-IN")} of it as reliably available for household costs and repayment — never the full amount.`,
+  };
+}
+
+/** Income the household can actually plan around, borrower plus reliable spouse share. */
+export function reliableHouseholdIncome(a: Answers, assessed: number) {
+  const borrower = householdCashIncome(a, assessed);
+  const spouse = spouseContribution(a);
+  return { borrower, spouse: spouse.value, total: borrower + spouse.value, spouseReason: spouse.reason };
+}
+
 /* ---------- affordability ---------- */
 
 export function calculateAffordability(a: Answers) {
@@ -148,8 +225,13 @@ export function calculateAffordability(a: Answers) {
   /** Unknown existing EMI is unknown, not zero — we say so rather than assuming free capacity. */
   const existingKnown = a.existingEmi !== null;
   const existing = a.existingEmi ?? 0;
-  const expenses = a.householdExpenses ?? 0;
+  const expenseInfo = householdExpenseTotal(a);
+  const expenses = expenseInfo.total;
   const cashIncome = householdCashIncome(a, income.value);
+  const household = reliableHouseholdIncome(a, income.value);
+  const insurance = insurancePremiumTotal(a, household.total);
+  const cardDebt = a.hasCardDebt === true ? (a.cardDebtMonthly ?? 0) : 0;
+  const otherCommitments = a.hasOtherCommitments === true ? (a.otherFixedCommitments ?? 0) : 0;
 
   const rawSafe = Math.max(0, income.value * safeFoir - existing);
   const rawLender = Math.max(0, income.value * lenderFoir - existing);
