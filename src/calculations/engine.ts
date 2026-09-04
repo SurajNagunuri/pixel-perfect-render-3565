@@ -618,6 +618,41 @@ function nextSteps(a: Answers, verdict: Verdict, secured: string | null): string
   return steps;
 }
 
+/* ---------- tenure & fees ---------- */
+
+/**
+ * Age materially limits tenure: the loan has to be repaid inside the borrower's
+ * earning years, which is why we ask for age at all.
+ */
+export function tenureLimitForAge(a: Answers, requested: number): { months: number; note: string | null } {
+  if (a.age === null) return { months: requested, note: null };
+  const type = effectiveIncomeType(a);
+  const endAge = type === "salaried" ? TENURE_AGE_RULE.salariedEndAge : TENURE_AGE_RULE.otherEndAge;
+  const allowed = Math.max(TENURE_AGE_RULE.minMonths, Math.round((endAge - a.age) * 12));
+  if (allowed >= requested) return { months: requested, note: null };
+  return {
+    months: allowed,
+    note: `At ${a.age}, lenders normally want the loan closed by about ${endAge}, so we assessed ${allowed} months instead of ${requested}.`,
+  };
+}
+
+/** Upfront charges deducted before the money reaches you — the reason APR beats the headline rate. */
+export function upfrontCharges(a: Answers, amount: number) {
+  const quoted = a.hasOffer === true && a.offerFee !== null;
+  const fee = quoted ? (a.offerFee as number) : amount * FEE_ASSUMPTIONS.assumedProcessingFeePct;
+  const other = amount * FEE_ASSUMPTIONS.otherUpfrontChargesPct;
+  return {
+    fee,
+    other,
+    quoted,
+    total: fee + other,
+    netDisbursed: Math.max(1, amount - fee - other),
+    reason: quoted
+      ? `Your quoted processing fee of ₹${Math.round(fee).toLocaleString("en-IN")} plus about ${(FEE_ASSUMPTIONS.otherUpfrontChargesPct * 100).toFixed(1)}% of other upfront charges never reaches your account, so the true annualised cost is higher than the headline rate.`
+      : `No quote yet, so we assume a ${(FEE_ASSUMPTIONS.assumedProcessingFeePct * 100).toFixed(1)}% processing fee (₹${Math.round(fee).toLocaleString("en-IN")}) plus ${(FEE_ASSUMPTIONS.otherUpfrontChargesPct * 100).toFixed(1)}% of other upfront charges. Those come off the disbursal, so the true annualised cost is higher than the headline rate.`,
+  };
+}
+
 /* ---------- top-level ---------- */
 
 export function runAssessment(a: Answers): Assessment {
@@ -626,10 +661,13 @@ export function runAssessment(a: Answers): Assessment {
   const rate = calculateFairRate(a);
   const midRate = (rate.value.low + rate.value.high) / 2;
   // Pledgeable collateral opens up secured products, which run longer than the unsecured default.
-  const securedRoute = a.hasCollateral === true && (a.collateralValue ?? 0) > 0;
-  const months = securedRoute
-    ? Math.max(DEFAULT_TENURES[purpose], DEFAULT_TENURES.against_property)
+  const securedRoute = isSecuredRoute(a);
+  const tenurePurpose = securedRoute ? SECURED_ROUTE_PURPOSE : purpose;
+  const requestedTenure = securedRoute
+    ? Math.max(DEFAULT_TENURES[purpose], DEFAULT_TENURES[SECURED_ROUTE_PURPOSE])
     : DEFAULT_TENURES[purpose];
+  const tenureLimit = tenureLimitForAge(a, requestedTenure);
+  const months = tenureLimit.months;
 
   const safeAmount = calculateSafeBorrowing(aff.safeEmi.value, rate.value, months);
   const lenderAmount = calculateLenderLikelySanction(aff.lenderEmi.value, rate.value, months, a);
@@ -637,11 +675,9 @@ export function runAssessment(a: Answers): Assessment {
   const requested = a.amount ?? 0;
   const requestedEmi = Math.round(calculateEMI(requested, midRate, months));
 
-  const feeRupees = a.hasOffer && a.offerFee !== null ? a.offerFee : requested * FEE_ASSUMPTIONS.assumedProcessingFeePct;
-  const otherCharges = requested * FEE_ASSUMPTIONS.otherUpfrontChargesPct;
-  const net = Math.max(1, requested - feeRupees - otherCharges);
-  const aprLow = calculateAPR(net, calculateEMI(requested, rate.value.low, months), months);
-  const aprHigh = calculateAPR(net, calculateEMI(requested, rate.value.high, months), months);
+  const charges = upfrontCharges(a, requested);
+  const aprLow = calculateAPR(charges.netDisbursed, calculateEMI(requested, rate.value.low, months), months);
+  const aprHigh = calculateAPR(charges.netDisbursed, calculateEMI(requested, rate.value.high, months), months);
 
   const stress = calculateStressCase(
     a,
@@ -653,12 +689,18 @@ export function runAssessment(a: Answers): Assessment {
     aff.safeFoir,
   );
 
-  const verdict = generateVerdict(a, aff.safeEmi.value, requestedEmi, safeAmount.value, aff.cashLeft);
+  const verdict = generateVerdict(
+    a,
+    aff.safeEmi.value,
+    requestedEmi,
+    safeAmount.value,
+    aff.cashLeft,
+    securedRoute,
+  );
 
-  const secured =
-    a.hasCollateral === true && (a.collateralValue ?? 0) > 0
-      ? `You have unencumbered collateral worth about ₹${(a.collateralValue as number).toLocaleString("en-IN")}. Ask specifically about a secured product (loan against property / business loan against collateral) — it is usually several percentage points cheaper than the unsecured quote you'll be offered first.`
-      : null;
+  const secured = securedRoute
+    ? `You have unencumbered collateral worth about ₹${(a.collateralValue as number).toLocaleString("en-IN")}. Ask specifically about a secured product (loan against property / business loan against collateral) — it is usually several percentage points cheaper than the unsecured quote you'll be offered first, and we have already priced your range as a secured loan.`
+    : null;
 
   const foirNow =
     aff.incomeBasis.value > 0 ? (requestedEmi + (a.existingEmi ?? 0)) / aff.incomeBasis.value : 1;
@@ -672,10 +714,19 @@ export function runAssessment(a: Answers): Assessment {
     fairRate: { value: rate.value, reason: rate.reason },
     apr: {
       value: { low: Math.round(aprLow.value * 10) / 10, high: Math.round(aprHigh.value * 10) / 10 },
-      reason: aprLow.reason,
+      reason: `${charges.reason} ${aprLow.reason}`,
     },
     requestedEmi,
-    tenureTable: tenureTable(requested, midRate, securedRoute ? "against_property" : purpose),
+    tenureTable: tenureTable(requested, midRate, tenurePurpose).filter(
+      (row) => row.months <= tenureLimit.months || tenureLimit.note === null,
+    ),
+    assumedTenureMonths: months,
+    tenureNote: tenureLimit.note,
+    upfrontFee: Math.round(charges.fee),
+    netDisbursed: Math.round(charges.netDisbursed),
+    feeIsQuoted: charges.quoted,
+    assessedMonthlyIncome: aff.incomeBasis.value,
+
     assumedTenureMonths: months,
     stress,
     foirNow,
