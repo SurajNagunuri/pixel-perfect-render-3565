@@ -162,7 +162,33 @@ export interface Assessment {
     foir: number;
     safeFoirTarget: number;
     note: string;
+    /** Free cash flow left if reliable income drops by the stress assumption. */
+    stressedFreeCashFlow: number;
+    stressedNote: string;
   };
+
+  /** Borrower-side monthly money flow — the second, cash-flow view of affordability. */
+  cashFlow: {
+    reliableHouseholdIncome: number;
+    borrowerIncome: number;
+    spouseContribution: number;
+    householdExpenses: number;
+    childrenExpenses: number;
+    existingEmi: number;
+    insurance: number;
+    cardDebt: number;
+    otherCommitments: number;
+    freeCashFlow: number;
+    emiCapFromCashFlow: number;
+    bufferShare: number;
+    /** Categories the borrower left blank, so the range is deliberately wider. */
+    missingCategories: string[];
+    assumptions: string[];
+  };
+
+  /** Which of the two calculations set the safe EMI. */
+  bindingConstraint: "debt_service" | "cash_flow";
+  foirSafeEmi: number;
   foirNow: number;
   reasons: string[];
   nextSteps: string[];
