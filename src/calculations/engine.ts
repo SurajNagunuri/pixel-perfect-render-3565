@@ -167,7 +167,11 @@ export function householdExpenseTotal(a: Answers): {
       usedLegacy: a.householdExpenses !== null,
     };
   }
-  const total = answered.reduce((sum, [, v]) => sum + (v as number), 0) + children;
+  // Children's costs and the education line overlap, so we count the larger of the
+  // two rather than adding both — double counting would understate real capacity.
+  const education = a.expenses.education ?? 0;
+  const childrenExtra = Math.max(0, children - education);
+  const total = answered.reduce((sum, [, v]) => sum + (v as number), 0) + childrenExtra;
   const missing = entries
     .filter(([k, v]) => v === null && !(k === "education" && children > 0))
     .map(([k]) => EXPENSE_LABELS[k]);
