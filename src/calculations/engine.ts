@@ -531,21 +531,34 @@ export function calculateStressCase(
   principal: number,
   months: number,
   safeFoir: number,
+  /** Free cash flow before the new EMI, so the stress case sees household obligations too. */
+  freeCashFlow: number,
+  reliableIncome: number,
 ) {
   const existing = a.existingEmi ?? 0;
+  const drop = STRESS_ASSUMPTIONS.incomeDropPct;
+  // A 15% income drop removes that much money from free cash flow as well.
+  const stressedFreeCashFlow = Math.round(freeCashFlow - reliableIncome * drop - requestedEmi);
+  const stressedNote =
+    stressedFreeCashFlow >= 0
+      ? `Under a ${Math.round(drop * 100)}% income drop, and while paying this EMI, your household would still have about ₹${stressedFreeCashFlow.toLocaleString("en-IN")}/month spare.`
+      : `Under a ${Math.round(drop * 100)}% income drop, and while paying this EMI, your household would fall short by about ₹${Math.abs(stressedFreeCashFlow).toLocaleString("en-IN")}/month. Consider a smaller loan or a longer runway before borrowing.`;
+
   const unstable =
     a.incomeStability === "varies_a_lot" ||
     a.incomeType === "informal" ||
     a.variableIncomePct === "gt25";
   if (unstable) {
-    const stressedIncome = assessableIncome * (1 - STRESS_ASSUMPTIONS.incomeDropPct);
+    const stressedIncome = assessableIncome * (1 - drop);
     const foir = stressedIncome > 0 ? (requestedEmi + existing) / stressedIncome : 1;
     return {
       kind: "income" as const,
       emi: Math.round(requestedEmi),
       foir,
       safeFoirTarget: safeFoir,
-      note: `If your income drops ${Math.round(STRESS_ASSUMPTIONS.incomeDropPct * 100)}% for a few months, your total EMIs would be ${Math.round(foir * 100)}% of income — ${foir > safeFoir ? "above" : "still inside"} your safer target of ${Math.round(safeFoir * 100)}%.`,
+      note: `If your income drops ${Math.round(drop * 100)}% for a few months, your total EMIs would be ${Math.round(foir * 100)}% of income — ${foir > safeFoir ? "above" : "still inside"} your safer target of ${Math.round(safeFoir * 100)}%.`,
+      stressedFreeCashFlow,
+      stressedNote,
     };
   }
   const stressEmi = calculateEMI(principal, ratePct + STRESS_ASSUMPTIONS.rateIncreasePoints, months);
@@ -556,6 +569,8 @@ export function calculateStressCase(
     foir,
     safeFoirTarget: safeFoir,
     note: `If rates rise ${STRESS_ASSUMPTIONS.rateIncreasePoints} percentage points, your EMI becomes ₹${Math.round(stressEmi).toLocaleString("en-IN")} and your debt burden moves to ${Math.round(foir * 100)}% — ${foir > safeFoir ? "above" : "still inside"} your safer target of ${Math.round(safeFoir * 100)}%.`,
+    stressedFreeCashFlow,
+    stressedNote,
   };
 }
 
