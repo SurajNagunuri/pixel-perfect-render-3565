@@ -400,18 +400,24 @@ export function generateVerdict(
   const highestRate = a.highestExistingRate ? HIGHEST_RATE_VALUE[a.highestExistingRate] : null;
   const expensiveDebt = a.highCostDebt === true || (highestRate !== null && highestRate >= 24);
   const bounce = a.recentBounce === "yes_3m";
-  const flags: string[] = [];
+  const fragile = a.incomeStability === "varies_a_lot" && a.emergencySavings === "lt1";
+  const noRoom = safeEmi <= 0 || cashLeft <= 0;
+  const wayOver = safeEmi > 0 && requestedEmi > safeEmi * 1.6;
 
+  const flags: string[] = [];
   if (bounce && expensiveDebt)
     flags.push("you have a missed EMI in the last three months alongside debt priced above 24%");
-  if (safeEmi <= 0 || cashLeft <= 0)
+  if (noRoom)
     flags.push("your income after household expenses and existing EMIs leaves no room for another EMI");
-  if (safeEmi > 0 && requestedEmi > safeEmi * 1.6)
-    flags.push("the EMI on the amount you want is far above what your cash flow can carry");
-  if (a.incomeStability === "varies_a_lot" && a.emergencySavings === "lt1")
+  if (wayOver) flags.push("the EMI on the amount you want is far above what your cash flow can carry");
+  if (fragile)
     flags.push("your income swings a lot and there is under a month of savings to absorb a bad month");
 
-  if (flags.length >= 1 && (bounce || safeEmi <= 0 || requestedEmi > safeEmi * 1.6)) {
+  // "Don't borrow" is reserved for genuine fragility, not simply asking for too much.
+  const dontBorrow =
+    noRoom || (bounce && expensiveDebt) || (wayOver && (bounce || expensiveDebt || fragile));
+
+  if (dontBorrow && flags.length) {
     return {
       value: "DONT_BORROW",
       reason: `Not right now — ${flags.slice(0, 2).join(", and ")}. Another EMI would leave too little room for essentials.`,
