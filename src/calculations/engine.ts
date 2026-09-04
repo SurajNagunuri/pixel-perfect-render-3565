@@ -175,7 +175,7 @@ export function householdExpenseTotal(a: Answers): {
   const missing = entries
     .filter(([k, v]) => v === null && !(k === "education" && children > 0))
     .map(([k]) => EXPENSE_LABELS[k]);
-  return { total, children, missing, usedLegacy: false };
+  return { total, children: childrenExtra, missing, usedLegacy: false };
 }
 
 /**
