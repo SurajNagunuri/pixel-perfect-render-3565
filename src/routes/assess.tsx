@@ -353,13 +353,11 @@ function validate(step: StepId, a: Answers): string | null {
     case "children":
       return a.childrenCount === null ? "Choose one option." : null;
     case "childrenSpend":
-      return a.childrenMonthlyExpenses === null
-        ? "Give a rough monthly figure, or tap “I don't know”."
-        : null;
+      return null;
     case "spouse":
       return a.spouseContributes === null ? "Choose one option." : null;
     case "spouseIncome":
-      return a.spouseIncome === null ? "Enter a rough figure, or tap “I'd rather not say”." : null;
+      return null;
     case "spouseShare":
       return a.spouseReliableContribution === null ? "Choose one option." : null;
     case "expenses": {
@@ -837,6 +835,9 @@ function StepBody({
             suffix="/month"
             quickAdd={[5000, 12000, 25000]}
           />
+          <SkipButton onClick={() => setAnswers({ childrenMonthlyExpenses: null })}>
+            I don't know
+          </SkipButton>
           <Note>
             We count this as a real household cost, not a penalty for having children. It lowers the EMI we
             think is comfortable, and nothing else.
@@ -878,6 +879,7 @@ function StepBody({
             suffix="/month"
             quickAdd={[15000, 30000, 60000]}
           />
+          <SkipButton onClick={() => setAnswers({ spouseIncome: null })}>I'd rather not say</SkipButton>
         </QuestionShell>
       );
 
