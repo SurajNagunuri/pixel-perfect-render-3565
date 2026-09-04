@@ -31,3 +31,16 @@ export function groupINR(value: number | null): string {
   if (value === null) return "";
   return value.toLocaleString("en-IN");
 }
+
+/**
+ * Spoken Indian form of an amount — "8 lakh", "1.2 crore", "45 thousand".
+ * Shown beneath money inputs so a mistyped zero is obvious at a glance.
+ */
+export function inrWords(value: number | null | undefined): string | null {
+  if (value === null || value === undefined || Number.isNaN(value) || value === 0) return null;
+  const v = Math.abs(Math.round(value));
+  if (v >= 10000000) return `${trim(v / 10000000)} crore`;
+  if (v >= 100000) return `${trim(v / 100000)} lakh`;
+  if (v >= 1000) return `${trim(v / 1000)} thousand`;
+  return null;
+}
