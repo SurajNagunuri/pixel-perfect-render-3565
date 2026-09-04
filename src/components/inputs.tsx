@@ -43,10 +43,18 @@ export function ChoiceGroup<T extends string>({
   options: { value: T; label: string; sub?: string }[];
   value: T | null;
   onChange: (v: T) => void;
-  columns?: 1 | 2;
+  columns?: 1 | 2 | 3 | 4;
 }) {
+  const cols =
+    columns === 4
+      ? "grid-cols-2 sm:grid-cols-4"
+      : columns === 3
+        ? "grid-cols-2 sm:grid-cols-3"
+        : columns === 2
+          ? "sm:grid-cols-2"
+          : "";
   return (
-    <div className={`grid gap-2.5 ${columns === 2 ? "sm:grid-cols-2" : ""}`} role="radiogroup">
+    <div className={`grid gap-2.5 ${cols}`} role="radiogroup">
       {options.map((o) => {
         const active = value === o.value;
         return (
