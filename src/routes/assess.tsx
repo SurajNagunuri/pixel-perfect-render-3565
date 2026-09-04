@@ -42,11 +42,24 @@ type StepId =
   | "collateralValue"
   | "highCostDebt"
   | "bounce"
+  | "family"
+  | "dependents"
+  | "children"
+  | "childrenSpend"
+  | "spouse"
+  | "spouseIncome"
+  | "spouseShare"
   | "existingEmi"
   | "debtCount"
   | "debtOutstanding"
   | "debtRate"
+  | "cardDebt"
+  | "cardDebtAmount"
   | "expenses"
+  | "insurance"
+  | "insuranceDetail"
+  | "commitments"
+  | "commitmentsAmount"
   | "savings"
   | "age"
   | "credit"
@@ -54,9 +67,22 @@ type StepId =
   | "offer"
   | "offerDetail";
 
-type Section = "Your plan" | "Your income" | "Your commitments" | "Your cushion" | "Your quote";
+type Section =
+  | "Your plan"
+  | "Your income"
+  | "Your household"
+  | "Your commitments"
+  | "Your cushion"
+  | "Your quote";
 
-const SECTIONS: Section[] = ["Your plan", "Your income", "Your commitments", "Your cushion", "Your quote"];
+const SECTIONS: Section[] = [
+  "Your plan",
+  "Your income",
+  "Your household",
+  "Your commitments",
+  "Your cushion",
+  "Your quote",
+];
 
 const SECTION_OF: Record<StepId, Section> = {
   purpose: "Your plan",
@@ -70,13 +96,26 @@ const SECTION_OF: Record<StepId, Section> = {
   documented: "Your income",
   collateral: "Your income",
   collateralValue: "Your income",
+  family: "Your household",
+  dependents: "Your household",
+  children: "Your household",
+  childrenSpend: "Your household",
+  spouse: "Your household",
+  spouseIncome: "Your household",
+  spouseShare: "Your household",
+  expenses: "Your household",
   existingEmi: "Your commitments",
   debtCount: "Your commitments",
   debtOutstanding: "Your commitments",
   debtRate: "Your commitments",
+  cardDebt: "Your commitments",
+  cardDebtAmount: "Your commitments",
+  insurance: "Your commitments",
+  insuranceDetail: "Your commitments",
+  commitments: "Your commitments",
+  commitmentsAmount: "Your commitments",
   highCostDebt: "Your commitments",
   bounce: "Your commitments",
-  expenses: "Your commitments",
   savings: "Your cushion",
   age: "Your cushion",
   credit: "Your cushion",
@@ -97,6 +136,10 @@ const AUTO_ADVANCE: StepId[] = [
   "highCostDebt",
   "bounce",
   "savings",
+  "family",
+  "dependents",
+  "children",
+  "spouseShare",
 ];
 
 /** Adaptive branching: a borrower only ever sees questions that change their result. */
@@ -110,10 +153,29 @@ function visibleSteps(a: Answers): StepId[] {
   }
   if (a.incomeType === "informal") steps.push("highCostDebt", "bounce");
 
+  // Household shape: asked after income, because it changes cash-flow capacity, not pricing.
+  steps.push("family", "dependents");
+  const hasDependents = a.numberOfDependents !== null && a.numberOfDependents !== "0";
+  if (a.maritalStatus === "married" || hasDependents) steps.push("children");
+  if (a.childrenCount !== null && a.childrenCount !== "0") steps.push("childrenSpend");
+  if (a.maritalStatus === "married") {
+    steps.push("spouse");
+    if (a.spouseContributes === "regular" || a.spouseContributes === "sometimes")
+      steps.push("spouseIncome", "spouseShare");
+  }
+  steps.push("expenses");
+
   steps.push("existingEmi");
   if ((a.existingEmi ?? 0) > 0) steps.push("debtCount", "debtOutstanding", "debtRate");
+  steps.push("cardDebt");
+  if (a.hasCardDebt === true) steps.push("cardDebtAmount");
 
-  steps.push("expenses", "savings", "age", "credit");
+  steps.push("insurance");
+  if (a.hasInsurance === "yes") steps.push("insuranceDetail");
+  steps.push("commitments");
+  if (a.hasOtherCommitments === true) steps.push("commitmentsAmount");
+
+  steps.push("savings", "age", "credit");
   if (a.creditKnown === "yes") steps.push("creditScore");
 
   steps.push("offer");
