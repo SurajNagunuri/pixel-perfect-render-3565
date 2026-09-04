@@ -1,0 +1,126 @@
+import type { Answers } from "@/types";
+
+export const emptyAnswers: Answers = {
+  purpose: null,
+  amount: null,
+  incomeType: null,
+  monthlyIncome: null,
+  incomeStability: null,
+  existingEmi: null,
+  householdExpenses: null,
+  age: null,
+  creditKnown: null,
+  creditScore: null,
+  employmentTenure: null,
+  variableIncomePct: null,
+  businessVintage: null,
+  documentedAnnualIncome: null,
+  hasCollateral: null,
+  collateralValue: null,
+  highCostDebt: null,
+  recentBounce: null,
+  emergencySavings: null,
+  activeLoans: null,
+  outstandingPrincipal: null,
+  highestExistingRate: null,
+  hasOffer: null,
+  offerRate: null,
+  offerFee: null,
+  offerTenureMonths: null,
+  offerAmount: null,
+};
+
+export interface SampleBorrower {
+  id: "priya" | "ravi" | "anita";
+  name: string;
+  blurb: string;
+  detail: string;
+  answers: Answers;
+}
+
+export const sampleBorrowers: SampleBorrower[] = [
+  {
+    id: "priya",
+    name: "Priya, 29 · Bengaluru",
+    blurb: "Salaried software engineer · wants ₹8L for a wedding",
+    detail:
+      "5 years at a large MNC, ₹1,10,000 take-home, a ₹14,000 car EMI with 2 years left, credit score 780, rent ₹28,000.",
+    answers: {
+      ...emptyAnswers,
+      purpose: "personal",
+      amount: 800000,
+      incomeType: "salaried",
+      monthlyIncome: 110000,
+      incomeStability: "stable",
+      existingEmi: 14000,
+      householdExpenses: 45000,
+      age: 29,
+      creditKnown: "yes",
+      creditScore: 780,
+      employmentTenure: "5to10",
+      variableIncomePct: "lt10",
+      emergencySavings: "3to6",
+      activeLoans: 1,
+      outstandingPrincipal: 300000,
+      highestExistingRate: "lt12",
+      hasOffer: true,
+      offerRate: 13.5,
+      offerFee: 12000,
+      offerTenureMonths: 48,
+      offerAmount: 800000,
+    },
+  },
+  {
+    id: "ravi",
+    name: "Ravi, 42 · Mysuru",
+    blurb: "Self-employed kirana owner · wants ₹15L for stock + a delivery vehicle",
+    detail:
+      "14 years in business, cash income ₹40,000–80,000/month, ITR shows ₹4,20,000/year, unencumbered shop worth ₹45L, no credit score.",
+    answers: {
+      ...emptyAnswers,
+      purpose: "business",
+      amount: 1500000,
+      incomeType: "self_employed",
+      monthlyIncome: 60000,
+      incomeStability: "varies_some",
+      existingEmi: 0,
+      householdExpenses: 30000,
+      age: 42,
+      creditKnown: "no",
+      creditScore: null,
+      businessVintage: "10plus",
+      documentedAnnualIncome: 420000,
+      hasCollateral: true,
+      collateralValue: 4500000,
+      emergencySavings: "1to3",
+      hasOffer: false,
+    },
+  },
+  {
+    id: "anita",
+    name: "Anita, 35 · Hubballi",
+    blurb: "Delivery rider + home tailoring · wants ₹1,50,000 for an electric scooter",
+    detail:
+      "₹26,000–30,000/month, two children, husband unemployed, 3 app loans totalling ₹35,000 at 30%+, one EMI bounced last month.",
+    answers: {
+      ...emptyAnswers,
+      purpose: "vehicle",
+      amount: 150000,
+      incomeType: "informal",
+      monthlyIncome: 28000,
+      incomeStability: "varies_a_lot",
+      existingEmi: 6500,
+      householdExpenses: 19000,
+      age: 35,
+      creditKnown: "no",
+      creditScore: null,
+      emergencySavings: "lt1",
+      highCostDebt: true,
+      recentBounce: "yes_3m",
+      activeLoans: 3,
+      outstandingPrincipal: 35000,
+      highestExistingRate: "gt30",
+      hasOffer: false,
+    },
+  },
+];
