@@ -1,17 +1,29 @@
 import {
   AGE_LIMITS,
+  COLLATERAL,
+  DEBT_LOAD,
   DEFAULT_TENURES,
   FEE_ASSUMPTIONS,
   HIGHEST_RATE_VALUE,
+  HIGH_COST_DEBT_RATE_THRESHOLD,
   HIGH_RISK_UNSECURED_BAND,
+  HOUSEHOLD,
+  INCOME_ASSESSMENT,
   LENDER_FOIR,
   RATE_ADJUSTMENTS,
+  RATE_BAND,
   RATE_BANDS,
+  RATE_FLOORS,
   SAFETY_HAIRCUTS,
   SAFE_FOIR,
+  SECURED_ROUTE_PURPOSE,
   STRESS_ASSUMPTIONS,
+  TENURE_AGE_RULE,
   TENURE_OPTIONS,
+  VERDICT_THRESHOLDS,
+  principalRoundingStep,
 } from "@/rules/rules";
+
 import type {
   Answers,
   Assessment,
@@ -92,27 +104,38 @@ export function calculateAssessableIncome(a: Answers): { value: number; reason: 
         reason: `Lenders assess self-employed income from documents. Your ITR / records show about ₹${doc.toLocaleString("en-IN")}/month, so we assess on that rather than your peak cash months.`,
       };
     }
+    const f = INCOME_ASSESSMENT.undocumentedSelfEmployedFactor;
     return {
-      value: Math.round(stated * 0.6),
-      reason:
-        "Without documented income, we assess only about 60% of your stated cash income — undocumented income is usually discounted heavily.",
+      value: Math.round(stated * f),
+      reason: `Without documented income, we assess only about ${Math.round(f * 100)}% of your stated cash income — undocumented income is usually discounted heavily.`,
     };
   }
   if (type === "informal") {
+    const f = INCOME_ASSESSMENT.informalFactor;
     return {
-      value: Math.round(stated * 0.85),
-      reason:
-        "Gig / cash income can dip in a bad month, so we assess about 85% of your typical monthly income.",
+      value: Math.round(stated * f),
+      reason: `Gig / cash income can dip in a bad month, so we assess about ${Math.round(f * 100)}% of your typical monthly income.`,
     };
   }
   if (a.variableIncomePct === "gt25") {
+    const f = INCOME_ASSESSMENT.highVariablePayFactor;
     return {
-      value: Math.round(stated * 0.85),
-      reason:
-        "More than 25% of your pay is variable, so we assess about 85% of it — incentives are not guaranteed.",
+      value: Math.round(stated * f),
+      reason: `More than 25% of your pay is variable, so we assess about ${Math.round(f * 100)}% of it — incentives are not guaranteed.`,
     };
   }
   return { value: stated, reason: "We assess your full stated monthly take-home income." };
+}
+
+/** True when the borrower carries debt priced at or above the high-cost threshold. */
+export function hasExpensiveExistingDebt(a: Answers): boolean {
+  const highestRate = a.highestExistingRate ? HIGHEST_RATE_VALUE[a.highestExistingRate] : null;
+  return a.highCostDebt === true || (highestRate !== null && highestRate >= HIGH_COST_DEBT_RATE_THRESHOLD);
+}
+
+/** Cash actually in hand each month — never the documented-income discount. */
+export function householdCashIncome(a: Answers, assessed: number): number {
+  return Math.max(assessed, a.monthlyIncome ?? 0);
 }
 
 /* ---------- affordability ---------- */
@@ -122,8 +145,11 @@ export function calculateAffordability(a: Answers) {
   const income = calculateAssessableIncome(a);
   const safeFoir = SAFE_FOIR[type];
   const lenderFoir = LENDER_FOIR[type];
+  /** Unknown existing EMI is unknown, not zero — we say so rather than assuming free capacity. */
+  const existingKnown = a.existingEmi !== null;
   const existing = a.existingEmi ?? 0;
   const expenses = a.householdExpenses ?? 0;
+  const cashIncome = householdCashIncome(a, income.value);
 
   const rawSafe = Math.max(0, income.value * safeFoir - existing);
   const rawLender = Math.max(0, income.value * lenderFoir - existing);
@@ -137,15 +163,35 @@ export function calculateAffordability(a: Answers) {
     haircuts.push({ label: "a missed EMI in the last 3 months", pct: SAFETY_HAIRCUTS.recentBounce });
   if (a.emergencySavings === "lt1")
     haircuts.push({ label: "under 1 month of emergency savings", pct: SAFETY_HAIRCUTS.lowSavings });
-  const highestRate = a.highestExistingRate ? HIGHEST_RATE_VALUE[a.highestExistingRate] : null;
-  if (a.highCostDebt === true || (highestRate !== null && highestRate >= 24))
-    haircuts.push({ label: "existing debt above 24%", pct: SAFETY_HAIRCUTS.highCostDebt });
+  if (hasExpensiveExistingDebt(a))
+    haircuts.push({
+      label: `existing debt above ${HIGH_COST_DEBT_RATE_THRESHOLD}%`,
+      pct: SAFETY_HAIRCUTS.highCostDebt,
+    });
+  if ((a.activeLoans ?? 0) >= DEBT_LOAD.manyActiveLoans)
+    haircuts.push({
+      label: `${a.activeLoans} loans running at the same time`,
+      pct: DEBT_LOAD.manyActiveLoansHaircut,
+    });
+  if (
+    a.outstandingPrincipal !== null &&
+    cashIncome > 0 &&
+    a.outstandingPrincipal > cashIncome * DEBT_LOAD.heavyOutstandingMonthsOfIncome
+  )
+    haircuts.push({
+      label: `outstanding balances above ${DEBT_LOAD.heavyOutstandingMonthsOfIncome} months of income`,
+      pct: DEBT_LOAD.heavyOutstandingHaircut,
+    });
 
-  // Household cash flow uses actual money in hand, not the documented-income discount.
-  const cashLeft = Math.max(income.value, a.monthlyIncome ?? 0) - expenses - existing;
-  const cashCap = Math.max(0, cashLeft * 0.7);
-  if (expenses > income.value * 0.6)
-    haircuts.push({ label: "household expenses above 60% of income", pct: SAFETY_HAIRCUTS.stretchedHousehold });
+  // Household cash flow uses actual money in hand, not the documented-income discount,
+  // and the "stretched household" test uses the same basis so the two never disagree.
+  const cashLeft = cashIncome - expenses - existing;
+  const cashCap = Math.max(0, cashLeft * HOUSEHOLD.maxShareOfLeftoverCash);
+  if (cashIncome > 0 && expenses > cashIncome * HOUSEHOLD.stretchedExpenseRatio)
+    haircuts.push({
+      label: `household expenses above ${Math.round(HOUSEHOLD.stretchedExpenseRatio * 100)}% of income`,
+      pct: SAFETY_HAIRCUTS.stretchedHousehold,
+    });
 
   let safeEmi = rawSafe;
   for (const h of haircuts) safeEmi *= 1 - h.pct;
@@ -155,11 +201,15 @@ export function calculateAffordability(a: Answers) {
   const reasonParts: string[] = [
     `Your safer debt-service ceiling is ${Math.round(safeFoir * 100)}% of the ₹${income.value.toLocaleString("en-IN")}/month we can assess${existing > 0 ? `, and ₹${existing.toLocaleString("en-IN")} of that is already committed to existing EMIs` : ""}.`,
   ];
+  if (!existingKnown)
+    reasonParts.push(
+      "You didn't tell us your existing EMIs, so we could not subtract them — if you do have EMIs running, your real ceiling is lower than this.",
+    );
   if (haircuts.length)
     reasonParts.push(`We then reduced the headroom for ${haircuts.map((h) => h.label).join(", ")}.`);
   if (cappedByCash)
     reasonParts.push(
-      `We also capped it so no more than 70% of your leftover household cash (₹${Math.max(0, Math.round(cashLeft)).toLocaleString("en-IN")}/month) goes to a new EMI.`,
+      `We also capped it so no more than ${Math.round(HOUSEHOLD.maxShareOfLeftoverCash * 100)}% of your leftover household cash (₹${Math.max(0, Math.round(cashLeft)).toLocaleString("en-IN")}/month) goes to a new EMI.`,
     );
 
   return {
@@ -167,14 +217,27 @@ export function calculateAffordability(a: Answers) {
     safeFoir,
     lenderFoir,
     existing,
+    existingKnown,
+    cashIncome,
     safeEmi: { value: safeEmi, reason: reasonParts.join(" ") },
     lenderEmi: {
       value: Math.round(rawLender),
-      reason: `A lender may work to a higher ${Math.round(lenderFoir * 100)}% debt-service threshold and does not apply borrower-side safety buffers.`,
+      reason: `A lender may work to a higher ${Math.round(lenderFoir * 100)}% debt-service threshold${existing > 0 ? `, still net of your ₹${existing.toLocaleString("en-IN")} existing EMIs` : ""}, and does not apply borrower-side safety buffers.`,
     },
+
     haircuts,
     cashLeft,
   };
+}
+
+/* ---------- secured routing ---------- */
+
+/**
+ * Pledgeable collateral changes the product, not just the price: it is what lets us
+ * quote a secured band, a secured tenure and an LTV-capped sanction.
+ */
+export function isSecuredRoute(a: Answers): boolean {
+  return a.hasCollateral === true && (a.collateralValue ?? 0) >= COLLATERAL.minValueToRouteSecured;
 }
 
 /* ---------- fair rate ---------- */
@@ -185,21 +248,28 @@ export function calculateFairRate(a: Answers): {
   factors: string[];
 } {
   const purpose = a.purpose ?? "other";
-  const base = RATE_BANDS[purpose];
+  const secured = isSecuredRoute(a);
+  /** With collateral we price the secured product the borrower should actually ask for. */
+  const pricedPurpose = secured ? SECURED_ROUTE_PURPOSE : purpose;
+  const base = RATE_BANDS[pricedPurpose];
   let low = base.low;
   let high = base.high;
   const factors: string[] = [`Indicative ${base.label} band: ${base.low}%–${base.high}%.`];
+  if (secured && pricedPurpose !== purpose)
+    factors.push(
+      `Because you have collateral to pledge, we price this as a secured loan rather than an unsecured ${RATE_BANDS[purpose].label.toLowerCase()}.`,
+    );
 
   const unsecuredHighRisk =
     (a.incomeType === "informal" || a.incomeType === "self_employed") &&
-    a.hasCollateral !== true &&
+    !secured &&
     (purpose === "personal" || purpose === "other" || purpose === "business");
 
   if (unsecuredHighRisk && (a.creditKnown !== "yes" || (a.creditScore ?? 0) < 680)) {
     high = Math.max(high, HIGH_RISK_UNSECURED_BAND.high);
     low = Math.max(low, HIGH_RISK_UNSECURED_BAND.low - 2);
     factors.push(
-      "Unsecured borrowing with limited documentation is priced far higher — lenders in this segment often quote 18–30%+.",
+      `Unsecured borrowing with limited documentation is priced far higher — lenders in this segment often quote ${HIGH_RISK_UNSECURED_BAND.low}–${HIGH_RISK_UNSECURED_BAND.high}%+.`,
     );
   }
 
@@ -230,12 +300,12 @@ export function calculateFairRate(a: Answers): {
     low += RATE_ADJUSTMENTS.longTenureShift;
     factors.push("Long, stable tenure earns you a better starting point.");
   }
-  if (a.hasCollateral === true && (a.collateralValue ?? 0) > 0) {
+  if (secured) {
     low += RATE_ADJUSTMENTS.collateralShift;
     high += RATE_ADJUSTMENTS.collateralShift;
     factors.push("Pledgeable collateral can move you to a secured product at a materially lower rate.");
   }
-  if (a.incomeType === "self_employed" && a.documentedAnnualIncome === null) {
+  if ((a.incomeType === "self_employed" || a.incomeType === "mixed") && a.documentedAnnualIncome === null) {
     high += RATE_ADJUSTMENTS.undocumentedIncomeShift;
     factors.push("Income that is not visible in filings pushes the upper end higher.");
   }
@@ -244,14 +314,27 @@ export function calculateFairRate(a: Answers): {
     high += RATE_ADJUSTMENTS.recentBounceShift;
     factors.push("A recent missed EMI is the single biggest pricing penalty.");
   }
-  const highestRate = a.highestExistingRate ? HIGHEST_RATE_VALUE[a.highestExistingRate] : null;
-  if (a.highCostDebt === true || (highestRate !== null && highestRate >= 24)) {
+  if (hasExpensiveExistingDebt(a)) {
     high += RATE_ADJUSTMENTS.highCostDebtShift;
-    factors.push("Existing debt above 24% signals stretched credit and widens the range.");
+    factors.push(
+      `Existing debt above ${HIGH_COST_DEBT_RATE_THRESHOLD}% signals stretched credit and widens the range.`,
+    );
+  }
+  if ((a.activeLoans ?? 0) >= DEBT_LOAD.manyActiveLoans) {
+    high += DEBT_LOAD.manyActiveLoansRateShift;
+    factors.push(
+      `${a.activeLoans} loans running at once reads as stacked borrowing and widens the upper end.`,
+    );
   }
 
-  low = Math.max(6, Math.round(low * 10) / 10);
-  high = Math.max(low + 1, Math.round(high * 10) / 10);
+  // A quoted range is only ever a band — never a single number — so we enforce a floor
+  // for the product and a minimum sensible width.
+  const floor = RATE_FLOORS[pricedPurpose];
+  low = Math.max(floor, Math.round(low * 10) / 10);
+  high = Math.max(low + RATE_BAND.minWidthPoints, Math.round(high * 10) / 10);
+  factors.push(
+    `We keep this as a band, not one number: the floor for this product is about ${floor}%, and where you land inside the band depends on the lender and how you negotiate.`,
+  );
 
   return {
     value: { low, high },
@@ -265,7 +348,8 @@ export function calculateFairRate(a: Answers): {
 function bandFromEmi(emi: number, rate: Band, months: number): Band {
   const high = principalFromEMI(emi, rate.low, months);
   const low = principalFromEMI(emi, rate.high, months);
-  return { low: roundTo(low, 10000), high: roundTo(high, 10000) };
+  const step = principalRoundingStep(high);
+  return { low: roundTo(low, step), high: roundTo(high, step) };
 }
 
 function roundTo(n: number, step: number) {
@@ -276,22 +360,24 @@ export function calculateSafeBorrowing(emi: number, rate: Band, months: number) 
   const band = bandFromEmi(emi, rate, months);
   return {
     value: band,
-    reason: `At a safe EMI of ₹${Math.round(emi).toLocaleString("en-IN")}/month over ${months} months at ${rate.low}%–${rate.high}%, that EMI supports roughly this principal.`,
+    reason: `At a safe EMI of ₹${Math.round(emi).toLocaleString("en-IN")}/month over ${months} months at ${rate.low}%–${rate.high}%, that EMI supports roughly this principal. This is a borrower-side ceiling: what you should carry, not what anyone will offer.`,
   };
 }
 
 export function calculateLenderLikelySanction(emi: number, rate: Band, months: number, a: Answers) {
   const band = bandFromEmi(emi, rate, months);
-  if (a.hasCollateral === true && (a.collateralValue ?? 0) > 0) {
-    const ltvCap = roundTo((a.collateralValue as number) * 0.6, 10000);
+  const secured = isSecuredRoute(a);
+  if (secured) {
+    const ltvCap = roundTo((a.collateralValue as number) * COLLATERAL.ltvCap, principalRoundingStep(band.high));
     band.low = Math.min(band.low, ltvCap);
     band.high = Math.min(Math.max(band.high, band.low), ltvCap);
   }
   return {
     value: band,
-    reason: `Using the higher lender-style debt-service threshold${a.hasCollateral ? " and capping at roughly 60% of your collateral value" : ""}. This answers "what might they offer", which is a different question from "what should you carry".`,
+    reason: `Using the higher lender-style debt-service threshold${secured ? `, and capping at roughly ${Math.round(COLLATERAL.ltvCap * 100)}% of your collateral value` : ""}. This answers "what might they offer", which is a different question from "what should you carry" — the two numbers are computed separately and should not be read as one.`,
   };
 }
+
 
 /* ---------- tenure table & stress ---------- */
 
@@ -366,14 +452,23 @@ export function generateConfidence(a: Answers) {
   else if (coreOk && answered >= 3) overall = "Medium";
 
   let rate: Confidence = "Medium";
-  if (a.creditKnown === "yes" && a.creditScore !== null) rate = overall === "Low" ? "Medium" : "High";
-  else {
+  if (a.creditKnown === "yes" && a.creditScore !== null) {
+    rate = overall === "Low" ? "Medium" : "High";
+    notes.push(
+      `Rate confidence: ${rate} — you know your credit score (${a.creditScore}), which is the single biggest driver of pricing.`,
+    );
+  } else {
     rate = "Low";
-    notes.push("Rate confidence: Low — your credit score is unknown, so the range stays wider.");
+    notes.push(
+      "Rate confidence: Low — your credit score is unknown, so the range stays wider. Unknown is not the same as bad; pulling your free report can narrow this.",
+    );
   }
 
   // Never claim high overall confidence when the score is unknown or income is undocumented.
-  if (a.creditKnown !== "yes" && overall === "High") overall = "Medium";
+  if (a.creditKnown !== "yes" && overall === "High") {
+    overall = "Medium";
+    notes.push("Overall confidence is capped at Medium while your credit score is unknown.");
+  }
   if (a.incomeType === "self_employed" || a.incomeType === "informal") {
     if (overall === "High") overall = "Medium";
     notes.push(
@@ -382,16 +477,34 @@ export function generateConfidence(a: Answers) {
   }
 
   let amount: Confidence = overall;
-  if (a.incomeType === "self_employed" && a.documentedAnnualIncome === null) {
+  if ((a.incomeType === "self_employed" || a.incomeType === "mixed") && a.documentedAnnualIncome === null) {
     amount = "Low";
-    notes.push("Amount confidence is limited because your documented income is unknown.");
+    notes.push(
+      "Amount confidence is Low because your documented income is unknown — a lender will size the loan on filings, not on cash takings.",
+    );
   }
   if (a.incomeType === "informal") {
     amount = amount === "High" ? "Medium" : amount;
     notes.push("Cash / gig income is harder for lenders to verify, which lowers certainty.");
   }
+  if (a.existingEmi === null) {
+    amount = amount === "High" ? "Medium" : amount;
+    notes.push(
+      "You skipped existing EMIs, so we could not deduct them. If you do have loans running, treat every amount here as an over-estimate.",
+    );
+  }
+  if ((a.existingEmi ?? 0) > 0 && (a.highestExistingRate === null || a.highestExistingRate === "unknown"))
+    notes.push(
+      "The rate on your existing loans is unknown, so we couldn't tell whether refinancing would free up capacity.",
+    );
   if (a.hasOffer !== true)
-    notes.push("APR confidence is limited because some lender charges are unknown.");
+    notes.push(
+      `APR confidence is limited because no quote was entered — we assume a ${(FEE_ASSUMPTIONS.assumedProcessingFeePct * 100).toFixed(1)}% processing fee.`,
+    );
+  if (overall === "High" && rate === "High" && amount === "High")
+    notes.push(
+      "You answered everything that materially moves these numbers, so each output here is as tight as this tool can make it.",
+    );
 
   return { overall, rate, amount, notes };
 }
@@ -404,18 +517,20 @@ export function generateVerdict(
   requestedEmi: number,
   safeBand: Band,
   cashLeft: number,
+  secured: boolean,
 ): { value: Verdict; reason: string } {
   const requested = a.amount ?? 0;
-  const highestRate = a.highestExistingRate ? HIGHEST_RATE_VALUE[a.highestExistingRate] : null;
-  const expensiveDebt = a.highCostDebt === true || (highestRate !== null && highestRate >= 24);
+  const expensiveDebt = hasExpensiveExistingDebt(a);
   const bounce = a.recentBounce === "yes_3m";
   const fragile = a.incomeStability === "varies_a_lot" && a.emergencySavings === "lt1";
   const noRoom = safeEmi <= 0 || cashLeft <= 0;
-  const wayOver = safeEmi > 0 && requestedEmi > safeEmi * 1.6;
+  const wayOver = safeEmi > 0 && requestedEmi > safeEmi * VERDICT_THRESHOLDS.farAboveSafeEmiMultiple;
 
   const flags: string[] = [];
   if (bounce && expensiveDebt)
-    flags.push("you have a missed EMI in the last three months alongside debt priced above 24%");
+    flags.push(
+      `you have a missed EMI in the last three months alongside debt priced above ${HIGH_COST_DEBT_RATE_THRESHOLD}%`,
+    );
   if (noRoom)
     flags.push("your income after household expenses and existing EMIs leaves no room for another EMI");
   if (wayOver) flags.push("the EMI on the amount you want is far above what your cash flow can carry");
@@ -423,20 +538,21 @@ export function generateVerdict(
     flags.push("your income swings a lot and there is under a month of savings to absorb a bad month");
 
   // "Don't borrow" is reserved for genuine fragility, not simply asking for too much.
+  // Collateral is never on its own a reason to stop — it is a reason to change product.
   const dontBorrow =
     noRoom || (bounce && expensiveDebt) || (wayOver && (bounce || expensiveDebt || fragile));
 
   if (dontBorrow && flags.length) {
     return {
       value: "DONT_BORROW",
-      reason: `Not right now — ${flags.slice(0, 2).join(", and ")}. Another EMI would leave too little room for essentials.`,
+      reason: `Not right now — ${flags.slice(0, 2).join(", and ")}. Another EMI would leave too little room for essentials.${secured ? " If you must raise money, do it against your collateral, not on an unsecured loan." : ""}`,
     };
   }
 
-  if (requested > safeBand.high * 1.05) {
+  if (requested > safeBand.high * VERDICT_THRESHOLDS.amountBandTolerance) {
     return {
       value: "BORROW_LESS",
-      reason: `You can carry debt, but ₹${requested.toLocaleString("en-IN")} is above your safer range. Target ₹${safeBand.low.toLocaleString("en-IN")}–₹${safeBand.high.toLocaleString("en-IN")} instead so a bad month doesn't break the EMI.`,
+      reason: `You can carry debt, but ₹${requested.toLocaleString("en-IN")} is above your safer range. Target ₹${safeBand.low.toLocaleString("en-IN")}–₹${safeBand.high.toLocaleString("en-IN")} instead so a bad month doesn't break the EMI.${secured ? " Ask for it as a secured loan against your collateral — the lower rate is what makes a larger amount affordable." : ""}`,
     };
   }
 
@@ -456,22 +572,30 @@ export function generateVerdict(
 
 export function generateReasons(a: Answers, assessment: Omit<Assessment, "reasons" | "nextSteps">): string[] {
   const out: string[] = [];
-  if (a.creditKnown === "yes" && (a.creditScore ?? 0) >= 750)
+  if (a.creditKnown === "yes" && (a.creditScore ?? 0) >= VERDICT_THRESHOLDS.strongCreditScore)
     out.push(`Strong credit profile (score ${a.creditScore}) — ask for the lower end of the range.`);
   else if (a.creditKnown !== "yes")
     out.push("Credit score unknown — pull your free bureau report before negotiating; it may move your rate.");
-  if ((a.existingEmi ?? 0) > 0)
-    out.push(`Existing EMIs already use ₹${(a.existingEmi as number).toLocaleString("en-IN")}/month of your income.`);
+  if ((a.existingEmi ?? 0) > 0) {
+    const loans = a.activeLoans ?? 0;
+    out.push(
+      `Existing EMIs already use ₹${(a.existingEmi as number).toLocaleString("en-IN")}/month of your income${loans > 0 ? ` across ${loans} active ${loans === 1 ? "loan" : "loans"}${a.outstandingPrincipal ? ` (₹${a.outstandingPrincipal.toLocaleString("en-IN")} still outstanding)` : ""}` : ""}, and that is deducted before your ceiling is set.`,
+    );
+  } else if (a.existingEmi === null)
+    out.push("You skipped existing EMIs — anything already running reduces every number on this page.");
   else out.push("No existing EMIs, so your full debt-service capacity is available.");
+
   out.push(
-    `Assessed monthly income ₹${Math.round(assessment.documentedMonthlyIncome ?? a.monthlyIncome ?? 0).toLocaleString("en-IN")} with a safer debt burden target of ${Math.round(assessment.stress.safeFoirTarget * 100)}%.`,
+    `Assessed monthly income ₹${Math.round(assessment.assessedMonthlyIncome).toLocaleString("en-IN")}${assessment.documentedMonthlyIncome !== null ? ` (from documented income of ₹${assessment.documentedMonthlyIncome.toLocaleString("en-IN")}/month, not cash takings)` : ""} with a safer debt burden target of ${Math.round(assessment.stress.safeFoirTarget * 100)}%.`,
   );
   if (assessment.verdict.value === "BORROW")
     out.push("Requested amount remains inside the safer affordability range.");
   if (assessment.verdict.value === "BORROW_LESS")
     out.push("Requested amount is above the safer affordability range.");
-  if (a.hasCollateral === true) out.push("Collateral available — a secured product should be priced lower.");
+  if (isSecuredRoute(a))
+    out.push("Collateral available — this should be asked for as a secured loan, which is priced lower.");
   return out.slice(0, 4);
+
 }
 
 function nextSteps(a: Answers, verdict: Verdict, secured: string | null): string[] {
@@ -494,6 +618,41 @@ function nextSteps(a: Answers, verdict: Verdict, secured: string | null): string
   return steps;
 }
 
+/* ---------- tenure & fees ---------- */
+
+/**
+ * Age materially limits tenure: the loan has to be repaid inside the borrower's
+ * earning years, which is why we ask for age at all.
+ */
+export function tenureLimitForAge(a: Answers, requested: number): { months: number; note: string | null } {
+  if (a.age === null) return { months: requested, note: null };
+  const type = effectiveIncomeType(a);
+  const endAge = type === "salaried" ? TENURE_AGE_RULE.salariedEndAge : TENURE_AGE_RULE.otherEndAge;
+  const allowed = Math.max(TENURE_AGE_RULE.minMonths, Math.round((endAge - a.age) * 12));
+  if (allowed >= requested) return { months: requested, note: null };
+  return {
+    months: allowed,
+    note: `At ${a.age}, lenders normally want the loan closed by about ${endAge}, so we assessed ${allowed} months instead of ${requested}.`,
+  };
+}
+
+/** Upfront charges deducted before the money reaches you — the reason APR beats the headline rate. */
+export function upfrontCharges(a: Answers, amount: number) {
+  const quoted = a.hasOffer === true && a.offerFee !== null;
+  const fee = quoted ? (a.offerFee as number) : amount * FEE_ASSUMPTIONS.assumedProcessingFeePct;
+  const other = amount * FEE_ASSUMPTIONS.otherUpfrontChargesPct;
+  return {
+    fee,
+    other,
+    quoted,
+    total: fee + other,
+    netDisbursed: Math.max(1, amount - fee - other),
+    reason: quoted
+      ? `Your quoted processing fee of ₹${Math.round(fee).toLocaleString("en-IN")} plus about ${(FEE_ASSUMPTIONS.otherUpfrontChargesPct * 100).toFixed(1)}% of other upfront charges never reaches your account, so the true annualised cost is higher than the headline rate.`
+      : `No quote yet, so we assume a ${(FEE_ASSUMPTIONS.assumedProcessingFeePct * 100).toFixed(1)}% processing fee (₹${Math.round(fee).toLocaleString("en-IN")}) plus ${(FEE_ASSUMPTIONS.otherUpfrontChargesPct * 100).toFixed(1)}% of other upfront charges. Those come off the disbursal, so the true annualised cost is higher than the headline rate.`,
+  };
+}
+
 /* ---------- top-level ---------- */
 
 export function runAssessment(a: Answers): Assessment {
@@ -502,10 +661,13 @@ export function runAssessment(a: Answers): Assessment {
   const rate = calculateFairRate(a);
   const midRate = (rate.value.low + rate.value.high) / 2;
   // Pledgeable collateral opens up secured products, which run longer than the unsecured default.
-  const securedRoute = a.hasCollateral === true && (a.collateralValue ?? 0) > 0;
-  const months = securedRoute
-    ? Math.max(DEFAULT_TENURES[purpose], DEFAULT_TENURES.against_property)
+  const securedRoute = isSecuredRoute(a);
+  const tenurePurpose = securedRoute ? SECURED_ROUTE_PURPOSE : purpose;
+  const requestedTenure = securedRoute
+    ? Math.max(DEFAULT_TENURES[purpose], DEFAULT_TENURES[SECURED_ROUTE_PURPOSE])
     : DEFAULT_TENURES[purpose];
+  const tenureLimit = tenureLimitForAge(a, requestedTenure);
+  const months = tenureLimit.months;
 
   const safeAmount = calculateSafeBorrowing(aff.safeEmi.value, rate.value, months);
   const lenderAmount = calculateLenderLikelySanction(aff.lenderEmi.value, rate.value, months, a);
@@ -513,11 +675,9 @@ export function runAssessment(a: Answers): Assessment {
   const requested = a.amount ?? 0;
   const requestedEmi = Math.round(calculateEMI(requested, midRate, months));
 
-  const feeRupees = a.hasOffer && a.offerFee !== null ? a.offerFee : requested * FEE_ASSUMPTIONS.assumedProcessingFeePct;
-  const otherCharges = requested * FEE_ASSUMPTIONS.otherUpfrontChargesPct;
-  const net = Math.max(1, requested - feeRupees - otherCharges);
-  const aprLow = calculateAPR(net, calculateEMI(requested, rate.value.low, months), months);
-  const aprHigh = calculateAPR(net, calculateEMI(requested, rate.value.high, months), months);
+  const charges = upfrontCharges(a, requested);
+  const aprLow = calculateAPR(charges.netDisbursed, calculateEMI(requested, rate.value.low, months), months);
+  const aprHigh = calculateAPR(charges.netDisbursed, calculateEMI(requested, rate.value.high, months), months);
 
   const stress = calculateStressCase(
     a,
@@ -529,12 +689,18 @@ export function runAssessment(a: Answers): Assessment {
     aff.safeFoir,
   );
 
-  const verdict = generateVerdict(a, aff.safeEmi.value, requestedEmi, safeAmount.value, aff.cashLeft);
+  const verdict = generateVerdict(
+    a,
+    aff.safeEmi.value,
+    requestedEmi,
+    safeAmount.value,
+    aff.cashLeft,
+    securedRoute,
+  );
 
-  const secured =
-    a.hasCollateral === true && (a.collateralValue ?? 0) > 0
-      ? `You have unencumbered collateral worth about ₹${(a.collateralValue as number).toLocaleString("en-IN")}. Ask specifically about a secured product (loan against property / business loan against collateral) — it is usually several percentage points cheaper than the unsecured quote you'll be offered first.`
-      : null;
+  const secured = securedRoute
+    ? `You have unencumbered collateral worth about ₹${(a.collateralValue as number).toLocaleString("en-IN")}. Ask specifically about a secured product (loan against property / business loan against collateral) — it is usually several percentage points cheaper than the unsecured quote you'll be offered first, and we have already priced your range as a secured loan.`
+    : null;
 
   const foirNow =
     aff.incomeBasis.value > 0 ? (requestedEmi + (a.existingEmi ?? 0)) / aff.incomeBasis.value : 1;
@@ -548,18 +714,28 @@ export function runAssessment(a: Answers): Assessment {
     fairRate: { value: rate.value, reason: rate.reason },
     apr: {
       value: { low: Math.round(aprLow.value * 10) / 10, high: Math.round(aprHigh.value * 10) / 10 },
-      reason: aprLow.reason,
+      reason: `${charges.reason} ${aprLow.reason}`,
     },
     requestedEmi,
-    tenureTable: tenureTable(requested, midRate, securedRoute ? "against_property" : purpose),
+    tenureTable: tenureTable(requested, midRate, tenurePurpose).filter(
+      (row) => row.months <= tenureLimit.months || tenureLimit.note === null,
+    ),
     assumedTenureMonths: months,
+    tenureNote: tenureLimit.note,
+    upfrontFee: Math.round(charges.fee),
+    netDisbursed: Math.round(charges.netDisbursed),
+    feeIsQuoted: charges.quoted,
+    assessedMonthlyIncome: aff.incomeBasis.value,
     stress,
     foirNow,
     confidence: generateConfidence(a),
     offerComparison: buildOfferComparison(a, rate.value),
     secured,
-    documentedMonthlyIncome: aff.incomeBasis.value,
+    documentedMonthlyIncome:
+      a.documentedAnnualIncome !== null ? Math.round(a.documentedAnnualIncome / 12) : null,
+    existingEmiKnown: a.existingEmi !== null,
   };
+
 
   return {
     ...partial,
@@ -571,10 +747,10 @@ export function runAssessment(a: Answers): Assessment {
 function buildOfferComparison(a: Answers, fair: Band) {
   if (a.hasOffer !== true || a.offerRate === null || a.offerAmount === null || a.offerTenureMonths === null)
     return null;
-  const fee = a.offerFee ?? 0;
-  const net = Math.max(1, a.offerAmount - fee);
+  // Same upfront-charge model as the APR card, so the two numbers can't disagree.
+  const charges = upfrontCharges(a, a.offerAmount);
   const emi = calculateEMI(a.offerAmount, a.offerRate, a.offerTenureMonths);
-  const apr = calculateAPR(net, emi, a.offerTenureMonths).value;
+  const apr = calculateAPR(charges.netDisbursed, emi, a.offerTenureMonths).value;
   let verdict: string;
   if (a.offerRate <= fair.low) verdict = "This quote is better than the fair range for your profile. Worth taking.";
   else if (a.offerRate <= fair.high)
@@ -582,12 +758,13 @@ function buildOfferComparison(a: Answers, fair: Band) {
   else verdict = "This quote is above the fair range for your profile. Ask for a reduction or compare another lender.";
   return {
     rate: a.offerRate,
-    feeRupees: fee,
-    netDisbursed: Math.round(net),
+    feeRupees: Math.round(charges.fee),
+    netDisbursed: Math.round(charges.netDisbursed),
     apr: Math.round(apr * 10) / 10,
     verdict,
   };
 }
+
 
 /* ---------- validation ---------- */
 

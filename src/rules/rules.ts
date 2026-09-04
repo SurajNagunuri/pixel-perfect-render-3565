@@ -107,3 +107,92 @@ export const HIGHEST_RATE_VALUE: Record<HighestRate, number | null> = {
 
 export const AGE_LIMITS = { min: 18, max: 75, retirement: 60 };
 export const CREDIT_SCORE_RANGE = { min: 300, max: 900 };
+
+/* ---------------------------------------------------------------------------
+ * Assumptions that used to live inline in the calculation engine.
+ * Everything the engine treats as a judgement call must be a named value here.
+ * ------------------------------------------------------------------------- */
+
+/** How much of the income we can actually assess, by income type / documentation. */
+export const INCOME_ASSESSMENT = {
+  /** Self-employed with no ITR / documented income at all. */
+  undocumentedSelfEmployedFactor: 0.6,
+  /** Cash / gig income — a bad month is normal, so we don't assess the peak. */
+  informalFactor: 0.85,
+  /** Salaried where more than 25% of pay is variable/incentive-based. */
+  highVariablePayFactor: 0.85,
+};
+
+export const HOUSEHOLD = {
+  /** Share of leftover household cash (after expenses and existing EMIs) a new EMI may use. */
+  maxShareOfLeftoverCash: 0.7,
+  /** Expenses above this share of household income trigger a safety haircut. */
+  stretchedExpenseRatio: 0.6,
+};
+
+/** Loan-to-value cap a lender is likely to work to against pledged collateral. */
+export const COLLATERAL = {
+  ltvCap: 0.6,
+  /** Collateral above this value routes the assessment to a secured product. */
+  minValueToRouteSecured: 100000,
+};
+
+/** A borrower is treated as carrying expensive debt at or above this annual rate. */
+export const HIGH_COST_DEBT_RATE_THRESHOLD = 24;
+
+/** Existing-debt-load signals. */
+export const DEBT_LOAD = {
+  /** Number of simultaneously active loans that counts as stacked borrowing. */
+  manyActiveLoans: 3,
+  manyActiveLoansHaircut: 0.1,
+  manyActiveLoansRateShift: 1,
+  /** Outstanding principal above this multiple of monthly income is a heavy load. */
+  heavyOutstandingMonthsOfIncome: 6,
+  heavyOutstandingHaircut: 0.1,
+};
+
+/** Rate-band construction guardrails. */
+export const RATE_FLOORS: Record<Purpose, number> = {
+  home: 7.5,
+  against_property: 8.5,
+  personal: 10,
+  gold: 8.5,
+  vehicle: 9,
+  business: 10,
+  other: 11,
+};
+
+export const RATE_BAND = {
+  /** A band narrower than this is false precision, so we widen it. */
+  minWidthPoints: 1.5,
+};
+
+/** When collateral is pledged, price against this product's band instead of the raw purpose. */
+export const SECURED_ROUTE_PURPOSE: Purpose = "against_property";
+
+/** Verdict thresholds. */
+export const VERDICT_THRESHOLDS = {
+  /** Requested EMI above safe EMI by this multiple counts as "far above" cash flow. */
+  farAboveSafeEmiMultiple: 1.6,
+  /** Tolerance before we tell someone their ask is above the safer range. */
+  amountBandTolerance: 1.05,
+  /** Credit score at or above which we call the profile strong. */
+  strongCreditScore: 750,
+};
+
+/** Rounding step for displayed principal bands, by magnitude. */
+export function principalRoundingStep(value: number): number {
+  if (value >= 1000000) return 50000;
+  if (value >= 200000) return 10000;
+  if (value >= 50000) return 5000;
+  return 1000;
+}
+
+/** Age-based tenure limits: the loan should end before the borrower runs out of earning years. */
+export const TENURE_AGE_RULE = {
+  /** Salaried borrowers are expected to repay by retirement. */
+  salariedEndAge: AGE_LIMITS.retirement,
+  /** Self-employed / informal earners can usually run later. */
+  otherEndAge: 70,
+  minMonths: 12,
+};

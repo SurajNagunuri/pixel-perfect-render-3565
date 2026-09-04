@@ -96,6 +96,15 @@ export interface Assessment {
   requestedEmi: number;
   tenureTable: TenureRow[];
   assumedTenureMonths: number;
+  /** Set when age forced a shorter tenure than the product default. */
+  tenureNote: string | null;
+  upfrontFee: number;
+  netDisbursed: number;
+  feeIsQuoted: boolean;
+  /** Income the assessment actually used (capped at documented income where relevant). */
+  assessedMonthlyIncome: number;
+  existingEmiKnown: boolean;
+
   stress: {
     kind: "income" | "rate";
     emi: number;
