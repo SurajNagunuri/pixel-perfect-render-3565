@@ -726,15 +726,16 @@ export function runAssessment(a: Answers): Assessment {
     netDisbursed: Math.round(charges.netDisbursed),
     feeIsQuoted: charges.quoted,
     assessedMonthlyIncome: aff.incomeBasis.value,
-
-    assumedTenureMonths: months,
     stress,
     foirNow,
     confidence: generateConfidence(a),
     offerComparison: buildOfferComparison(a, rate.value),
     secured,
-    documentedMonthlyIncome: aff.incomeBasis.value,
+    documentedMonthlyIncome:
+      a.documentedAnnualIncome !== null ? Math.round(a.documentedAnnualIncome / 12) : null,
+    existingEmiKnown: a.existingEmi !== null,
   };
+
 
   return {
     ...partial,
