@@ -747,10 +747,10 @@ export function runAssessment(a: Answers): Assessment {
 function buildOfferComparison(a: Answers, fair: Band) {
   if (a.hasOffer !== true || a.offerRate === null || a.offerAmount === null || a.offerTenureMonths === null)
     return null;
-  const fee = a.offerFee ?? 0;
-  const net = Math.max(1, a.offerAmount - fee);
+  // Same upfront-charge model as the APR card, so the two numbers can't disagree.
+  const charges = upfrontCharges(a, a.offerAmount);
   const emi = calculateEMI(a.offerAmount, a.offerRate, a.offerTenureMonths);
-  const apr = calculateAPR(net, emi, a.offerTenureMonths).value;
+  const apr = calculateAPR(charges.netDisbursed, emi, a.offerTenureMonths).value;
   let verdict: string;
   if (a.offerRate <= fair.low) verdict = "This quote is better than the fair range for your profile. Worth taking.";
   else if (a.offerRate <= fair.high)
@@ -758,12 +758,13 @@ function buildOfferComparison(a: Answers, fair: Band) {
   else verdict = "This quote is above the fair range for your profile. Ask for a reduction or compare another lender.";
   return {
     rate: a.offerRate,
-    feeRupees: fee,
-    netDisbursed: Math.round(net),
+    feeRupees: Math.round(charges.fee),
+    netDisbursed: Math.round(charges.netDisbursed),
     apr: Math.round(apr * 10) / 10,
     verdict,
   };
 }
+
 
 /* ---------- validation ---------- */
 
