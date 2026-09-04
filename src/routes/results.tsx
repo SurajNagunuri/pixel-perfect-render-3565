@@ -298,6 +298,71 @@ function Results() {
                 existing EMIs are counted.
               </p>
 
+              {/* Which of the two calculations actually set the ceiling. */}
+              <div className="mt-5 rounded-xl border border-border/80 bg-surface/70 p-4">
+                <p className="text-sm font-medium">
+                  {r.bindingConstraint === "cash_flow"
+                    ? "Your household cash flow is what limits you — not the lending rules."
+                    : "Lending-rule limits set your ceiling, not your household spending."}
+                </p>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  Debt-service rules would allow around {formatINR(r.foirSafeEmi)}/month. After everything
+                  your household actually spends, {formatINR(r.cashFlow.emiCapFromCashFlow)}/month is what
+                  comfortably fits. We use the lower of the two.
+                </p>
+              </div>
+
+              {/* Where the money goes — the arithmetic behind the ceiling, in plain rupees. */}
+              <div className="mt-5 rounded-xl border border-border/80 bg-surface/70 p-4">
+                <p className="eyebrow">Where your monthly income goes</p>
+                <dl className="mt-3 divide-y divide-border/70 text-sm">
+                  <FlowRow label="Reliable household income" value={r.cashFlow.reliableHouseholdIncome} />
+                  {r.cashFlow.spouseContribution > 0 ? (
+                    <FlowRow
+                      label="— of which counted from your spouse"
+                      value={r.cashFlow.spouseContribution}
+                      muted
+                    />
+                  ) : null}
+                  <FlowRow label="Household expenses" value={-r.cashFlow.householdExpenses} />
+                  {r.cashFlow.childrenExpenses > 0 ? (
+                    <FlowRow label="Children" value={-r.cashFlow.childrenExpenses} />
+                  ) : null}
+                  {r.cashFlow.existingEmi > 0 ? (
+                    <FlowRow label="Existing EMIs" value={-r.cashFlow.existingEmi} />
+                  ) : null}
+                  {r.cashFlow.cardDebt > 0 ? (
+                    <FlowRow label="Card / app loan payments" value={-r.cashFlow.cardDebt} />
+                  ) : null}
+                  {r.cashFlow.insurance > 0 ? (
+                    <FlowRow label="Insurance premiums" value={-r.cashFlow.insurance} />
+                  ) : null}
+                  {r.cashFlow.otherCommitments > 0 ? (
+                    <FlowRow label="Other fixed commitments" value={-r.cashFlow.otherCommitments} />
+                  ) : null}
+                  <FlowRow label="Left over each month" value={r.cashFlow.freeCashFlow} strong />
+                  <FlowRow
+                    label={`Of that, EMI we'd call comfortable (${Math.round(r.cashFlow.bufferShare * 100)}%)`}
+                    value={r.cashFlow.emiCapFromCashFlow}
+                    strong
+                  />
+                </dl>
+                {r.cashFlow.missingCategories.length ? (
+                  <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                    You left {r.cashFlow.missingCategories.join(", ")} blank. We held back a small allowance
+                    instead of assuming zero, so this figure stays cautious.
+                  </p>
+                ) : null}
+                {r.cashFlow.assumptions.length ? (
+                  <ul className="mt-2 space-y-1 text-sm leading-relaxed text-muted-foreground">
+                    {r.cashFlow.assumptions.map((x) => (
+                      <li key={x}>{x}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+
+
               <div className="mt-5 rounded-xl bg-caution-soft p-4">
                 <p className="text-sm font-medium">
                   If {r.stress.kind === "income" ? "income drops" : "the rate rises"}
