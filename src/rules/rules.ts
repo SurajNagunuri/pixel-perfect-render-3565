@@ -1,4 +1,4 @@
-import type { HighestRate, IncomeType, Purpose } from "@/types";
+import type { HighestRate, IncomeType, Purpose, Savings, Stability } from "@/types";
 
 /**
  * Central configuration. Change a number here and every output updates.
