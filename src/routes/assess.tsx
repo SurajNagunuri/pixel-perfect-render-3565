@@ -346,10 +346,38 @@ function validate(step: StepId, a: Answers): string | null {
       return a.recentBounce === null ? "Choose one option." : null;
     case "existingEmi":
       return a.existingEmi === null ? "Enter your current EMIs, or tap “I have no EMIs”." : null;
-    case "expenses":
-      if (a.householdExpenses === null) return "Estimate your monthly household spending.";
-      if (a.householdExpenses < 0) return "Expenses cannot be negative.";
+    case "family":
+      return a.maritalStatus === null ? "Choose one option." : null;
+    case "dependents":
+      return a.numberOfDependents === null ? "Choose one option." : null;
+    case "children":
+      return a.childrenCount === null ? "Choose one option." : null;
+    case "childrenSpend":
+      return a.childrenMonthlyExpenses === null
+        ? "Give a rough monthly figure, or tap “I don't know”."
+        : null;
+    case "spouse":
+      return a.spouseContributes === null ? "Choose one option." : null;
+    case "spouseIncome":
+      return a.spouseIncome === null ? "Enter a rough figure, or tap “I'd rather not say”." : null;
+    case "spouseShare":
+      return a.spouseReliableContribution === null ? "Choose one option." : null;
+    case "expenses": {
+      const filled = Object.values(a.expenses).some((v) => v !== null);
+      if (!filled && a.householdExpenses === null)
+        return "Fill in at least one expense — a rough estimate is fine.";
       return null;
+    }
+    case "insurance":
+      return a.hasInsurance === null ? "Choose one option." : null;
+    case "cardDebt":
+      return a.hasCardDebt === null ? "Choose yes or no." : null;
+    case "cardDebtAmount":
+      return a.cardDebtMonthly === null ? "Enter a rough monthly payment." : null;
+    case "commitments":
+      return a.hasOtherCommitments === null ? "Choose yes or no." : null;
+    case "commitmentsAmount":
+      return a.otherFixedCommitments === null ? "Enter a rough monthly amount." : null;
     case "age":
       return validateAge(a.age);
     case "credit":
