@@ -166,7 +166,7 @@ function CardPage() {
                 label="Household expenses, insurance and existing commitments"
                 value={`${formatINR(
                   r.cashFlow.householdExpenses +
-                    r.cashFlow.childrenExpenses +
+
                     r.cashFlow.insurance +
                     r.cashFlow.existingEmi +
                     r.cashFlow.cardDebt +

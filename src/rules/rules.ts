@@ -91,10 +91,44 @@ export const SAFETY_HAIRCUTS = {
   variableIncomeHigh: 0.15,
   incomeVariesALot: 0.15,
   recentBounce: 0.25,
+  /** A missed payment older than 3 months still matters, just less. */
+  olderBounce: 0.1,
   lowSavings: 0.1,
   highCostDebt: 0.15,
+  /** A revolving card / app-loan balance, separate from its monthly payment. */
+  revolvingBalance: 0.1,
   stretchedHousehold: 0.15,
 };
+
+/**
+ * Missed-payment rules. A recent miss is the strongest single signal we hold, and
+ * repeated misses compound it. "I'm not sure" widens confidence instead of penalising.
+ */
+export const RECENT_BOUNCE_RULES = {
+  recentMonths: 3,
+  recentHaircut: SAFETY_HAIRCUTS.recentBounce,
+  olderHaircut: SAFETY_HAIRCUTS.olderBounce,
+  /** Extra haircut per additional miss beyond the first, in the last 12 months. */
+  perAdditionalMissHaircut: 0.05,
+  maxAdditionalHaircut: 0.15,
+  recentRateShift: RATE_ADJUSTMENTS.recentBounceShift,
+  olderRateShift: 1,
+  type: "my judgement" as const,
+};
+
+/**
+ * Expensive existing debt. Clearing it frees more room than a new loan creates, so
+ * we both price it in and say so.
+ */
+export const HIGH_COST_DEBT_RULES = {
+  rateThreshold: 24,
+  haircut: SAFETY_HAIRCUTS.highCostDebt,
+  rateShift: RATE_ADJUSTMENTS.highCostDebtShift,
+  /** Revolving balance above this multiple of monthly income is treated as heavy. */
+  heavyBalanceMonthsOfIncome: 1,
+  type: "my judgement" as const,
+};
+
 
 export const HIGHEST_RATE_VALUE: Record<HighestRate, number | null> = {
   lt12: 11,
@@ -121,7 +155,15 @@ export const INCOME_ASSESSMENT = {
   informalFactor: 0.85,
   /** Salaried where more than 25% of pay is variable/incentive-based. */
   highVariablePayFactor: 0.85,
+  /**
+   * When a variable earner tells us what a weaker but normal month brings in, we
+   * assess a blend rather than the good month — weighted toward the weak month.
+   */
+  weakMonthWeight: 0.6,
+  weakMonthReason:
+    "For income that moves month to month we assess a blend weighted toward your weaker month, because the EMI has to survive that month too.",
 };
+
 
 export const HOUSEHOLD = {
   /** Share of leftover household cash (after expenses and existing EMIs) a new EMI may use. */
@@ -209,7 +251,15 @@ export const COLLATERAL = {
   ltvCap: 0.6,
   /** Collateral above this value routes the assessment to a secured product. */
   minValueToRouteSecured: 100000,
+  /** Already mortgaged or pledged — only part of the value is really free. */
+  encumberedLtvFactor: 0.5,
+  /** Borrower isn't sure whether it carries a loan, so we stay cautious. */
+  unknownEncumbranceLtvFactor: 0.75,
+  reason:
+    "Collateral raises what a lender may sanction. It never raises what your household can afford to repay each month.",
+  type: "my judgement" as const,
 };
+
 
 /** A borrower is treated as carrying expensive debt at or above this annual rate. */
 export const HIGH_COST_DEBT_RATE_THRESHOLD = 24;

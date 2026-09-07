@@ -34,18 +34,22 @@ type StepId =
   | "incomeType"
   | "income"
   | "stability"
+  | "weakMonth"
   | "employmentTenure"
   | "variablePct"
   | "businessVintage"
   | "documented"
   | "collateral"
   | "collateralValue"
+  | "collateralLoan"
   | "highCostDebt"
   | "bounce"
+  | "bounceCount"
   | "family"
+  | "dependentsAny"
+  | "dependentsWho"
   | "dependents"
   | "children"
-  | "childrenSpend"
   | "spouse"
   | "spouseIncome"
   | "spouseShare"
@@ -55,6 +59,7 @@ type StepId =
   | "debtRate"
   | "cardDebt"
   | "cardDebtAmount"
+  | "cardDebtBalance"
   | "expenses"
   | "insurance"
   | "insuranceDetail"
@@ -90,16 +95,19 @@ const SECTION_OF: Record<StepId, Section> = {
   incomeType: "Your income",
   income: "Your income",
   stability: "Your income",
+  weakMonth: "Your income",
   employmentTenure: "Your income",
   variablePct: "Your income",
   businessVintage: "Your income",
   documented: "Your income",
   collateral: "Your income",
   collateralValue: "Your income",
+  collateralLoan: "Your income",
   family: "Your household",
+  dependentsAny: "Your household",
+  dependentsWho: "Your household",
   dependents: "Your household",
   children: "Your household",
-  childrenSpend: "Your household",
   spouse: "Your household",
   spouseIncome: "Your household",
   spouseShare: "Your household",
@@ -110,12 +118,14 @@ const SECTION_OF: Record<StepId, Section> = {
   debtRate: "Your commitments",
   cardDebt: "Your commitments",
   cardDebtAmount: "Your commitments",
+  cardDebtBalance: "Your commitments",
   insurance: "Your commitments",
   insuranceDetail: "Your commitments",
   commitments: "Your commitments",
   commitmentsAmount: "Your commitments",
   highCostDebt: "Your commitments",
   bounce: "Your commitments",
+  bounceCount: "Your commitments",
   savings: "Your cushion",
   age: "Your cushion",
   credit: "Your cushion",
@@ -137,27 +147,41 @@ const AUTO_ADVANCE: StepId[] = [
   "bounce",
   "savings",
   "family",
+  "dependentsAny",
   "dependents",
   "children",
   "spouseShare",
+  "collateralLoan",
 ];
+
+/** True when income moves month to month, so a weaker-month figure is worth asking for. */
+function hasVariableIncome(a: Answers): boolean {
+  return (
+    a.incomeType === "self_employed" ||
+    a.incomeType === "informal" ||
+    a.incomeType === "mixed" ||
+    a.variableIncomePct === "gt25" ||
+    a.incomeStability === "varies_some" ||
+    a.incomeStability === "varies_a_lot"
+  );
+}
 
 /** Adaptive branching: a borrower only ever sees questions that change their result. */
 function visibleSteps(a: Answers): StepId[] {
   const steps: StepId[] = ["purpose", "amount", "incomeType", "income", "stability"];
 
+  if (hasVariableIncome(a)) steps.push("weakMonth");
   if (a.incomeType === "salaried" || a.incomeType === "mixed") steps.push("employmentTenure", "variablePct");
-  if (a.incomeType === "self_employed" || a.incomeType === "mixed") {
-    steps.push("businessVintage", "documented", "collateral");
-    if (a.hasCollateral === true) steps.push("collateralValue");
-  }
-  if (a.incomeType === "informal") steps.push("highCostDebt", "bounce");
+  if (a.incomeType === "self_employed" || a.incomeType === "mixed") steps.push("businessVintage", "documented");
+  steps.push("collateral");
+  if (a.hasCollateral === true) steps.push("collateralValue", "collateralLoan");
 
   // Household shape: asked after income, because it changes cash-flow capacity, not pricing.
-  steps.push("family", "dependents");
-  const hasDependents = a.numberOfDependents !== null && a.numberOfDependents !== "0";
-  if (a.maritalStatus === "married" || hasDependents) steps.push("children");
-  if (a.childrenCount !== null && a.childrenCount !== "0") steps.push("childrenSpend");
+  steps.push("family", "dependentsAny");
+  if (a.hasDependents === "yes") {
+    steps.push("dependentsWho", "dependents");
+    if (a.dependentTypes?.includes("children")) steps.push("children");
+  }
   if (a.maritalStatus === "married") {
     steps.push("spouse");
     if (a.spouseContributes === "regular" || a.spouseContributes === "sometimes")
@@ -168,12 +192,16 @@ function visibleSteps(a: Answers): StepId[] {
   steps.push("existingEmi");
   if ((a.existingEmi ?? 0) > 0) steps.push("debtCount", "debtOutstanding", "debtRate");
   steps.push("cardDebt");
-  if (a.hasCardDebt === true) steps.push("cardDebtAmount");
+  if (a.hasCardDebt === true) steps.push("cardDebtAmount", "cardDebtBalance");
 
   steps.push("insurance");
   if (a.hasInsurance === "yes") steps.push("insuranceDetail");
   steps.push("commitments");
   if (a.hasOtherCommitments === true) steps.push("commitmentsAmount");
+
+  // Repayment history matters for every borrower, not only informal earners.
+  steps.push("highCostDebt", "bounce");
+  if (a.recentBounce === "yes_3m" || a.recentBounce === "yes_older") steps.push("bounceCount");
 
   steps.push("savings", "age", "credit");
   if (a.creditKnown === "yes") steps.push("creditScore");
@@ -182,6 +210,7 @@ function visibleSteps(a: Answers): StepId[] {
   if (a.hasOffer === true) steps.push("offerDetail");
   return steps;
 }
+
 
 function Assess() {
   const a = useAnswers();
@@ -340,26 +369,37 @@ function validate(step: StepId, a: Answers): string | null {
       return null;
     case "stability":
       return a.incomeStability ? null : "Tell us how stable that income is.";
+    case "weakMonth":
+      return null;
     case "collateral":
       return a.hasCollateral === null ? "Choose yes or no." : null;
+    case "collateralLoan":
+      return a.collateralHasLoan === null ? "Choose one option." : null;
     case "bounce":
       return a.recentBounce === null ? "Choose one option." : null;
+    case "bounceCount":
+      return null;
     case "existingEmi":
       return a.existingEmi === null ? "Enter your current EMIs, or tap “I have no EMIs”." : null;
     case "family":
       return a.maritalStatus === null ? "Choose one option." : null;
+    case "dependentsAny":
+      return a.hasDependents === null ? "Choose one option." : null;
+    case "dependentsWho":
+      return a.dependentTypes === null || a.dependentTypes.length === 0
+        ? "Pick at least one, or go back and say nobody depends on you."
+        : null;
     case "dependents":
       return a.numberOfDependents === null ? "Choose one option." : null;
     case "children":
       return a.childrenCount === null ? "Choose one option." : null;
-    case "childrenSpend":
-      return null;
     case "spouse":
       return a.spouseContributes === null ? "Choose one option." : null;
     case "spouseIncome":
       return null;
     case "spouseShare":
       return a.spouseReliableContribution === null ? "Choose one option." : null;
+
     case "expenses": {
       const filled = Object.values(a.expenses).some((v) => v !== null);
       if (!filled && a.householdExpenses === null)
@@ -372,6 +412,9 @@ function validate(step: StepId, a: Answers): string | null {
       return a.hasCardDebt === null ? "Choose yes or no." : null;
     case "cardDebtAmount":
       return a.cardDebtMonthly === null ? "Enter a rough monthly payment." : null;
+    case "cardDebtBalance":
+      return null;
+
     case "commitments":
       return a.hasOtherCommitments === null ? "Choose yes or no." : null;
     case "commitmentsAmount":
@@ -517,6 +560,34 @@ function StepBody({
         </QuestionShell>
       );
 
+    case "weakMonth":
+      return (
+        <QuestionShell
+          label="What do you usually earn in a weaker but normal month?"
+          hint="Not your worst month ever — a normal slow one. The EMI has to survive that month too, so we assess a blend weighted toward it."
+        >
+          <MoneyInput
+            autoFocus
+            value={a.weakMonthIncome}
+            onChange={(weakMonthIncome) => setAnswers({ weakMonthIncome })}
+            placeholder={a.monthlyIncome ? String(Math.round(a.monthlyIncome * 0.7)) : "40,000"}
+            suffix="/month"
+          />
+          {a.weakMonthIncome && a.monthlyIncome && a.weakMonthIncome < a.monthlyIncome ? (
+            <Note>
+              We'll assess a blend of {formatINR(a.weakMonthIncome)} and {formatINR(a.monthlyIncome)} rather
+              than your better month.
+            </Note>
+          ) : (
+            <SkipButton onClick={() => setAnswers({ weakMonthIncome: null })}>
+              Skip — my income doesn't really dip
+            </SkipButton>
+          )}
+        </QuestionShell>
+      );
+
+
+
     case "employmentTenure":
       return (
         <QuestionShell label="How long have you been working?" hint="Longer tenure earns a better starting rate.">
@@ -640,6 +711,31 @@ function StepBody({
         </QuestionShell>
       );
 
+    case "collateralLoan":
+      return (
+        <QuestionShell
+          label="Does that property or gold already have a loan on it?"
+          hint="An asset that is already mortgaged or pledged has less free value, so a lender can lend less against it."
+        >
+          <ChoiceGroup
+            columns={1}
+            value={a.collateralHasLoan}
+            onChange={(collateralHasLoan) => pick({ collateralHasLoan })}
+            options={[
+              { value: "no", label: "No, it's free of any loan" },
+              { value: "yes", label: "Yes, a loan is already running on it" },
+              { value: "unknown", label: "I'm not sure" },
+            ]}
+          />
+          <Note>
+            Collateral raises what a lender may sanction. It never raises what your household can afford to
+            repay each month — those stay two separate numbers.
+          </Note>
+        </QuestionShell>
+      );
+
+
+
     case "highCostDebt":
       return (
         <QuestionShell
@@ -660,20 +756,45 @@ function StepBody({
     case "bounce":
       return (
         <QuestionShell
-          label="Have you missed or bounced an EMI recently?"
-          hint="An honest answer here protects you — it's the single biggest pricing penalty."
+          label="Have you missed or bounced any loan or card payment?"
+          hint="An honest answer here protects you — it's the single biggest pricing penalty, and hiding it doesn't remove it from your record."
         >
           <ChoiceGroup
+            columns={1}
             value={a.recentBounce}
-            onChange={(recentBounce) => pick({ recentBounce })}
+            onChange={(recentBounce) =>
+              pick({
+                recentBounce,
+                bounceCount: recentBounce === "no" || recentBounce === "unknown" ? null : a.bounceCount,
+              })
+            }
             options={[
-              { value: "no", label: "No" },
+              { value: "no", label: "No, never" },
               { value: "yes_3m", label: "Yes, in the last 3 months" },
+              { value: "yes_older", label: "Yes, earlier in the past year" },
               { value: "unknown", label: "I'm not sure" },
             ]}
           />
         </QuestionShell>
       );
+
+    case "bounceCount":
+      return (
+        <QuestionShell
+          label="How many payments have you missed in the last year?"
+          hint="One slip reads very differently from a pattern, so this changes how conservative we are."
+        >
+          <PlainInput
+            autoFocus
+            value={a.bounceCount}
+            onChange={(bounceCount) => setAnswers({ bounceCount })}
+            placeholder="1"
+            suffix="payments"
+          />
+          <SkipButton onClick={() => setAnswers({ bounceCount: null })}>I don't remember</SkipButton>
+        </QuestionShell>
+      );
+
 
     case "existingEmi":
       return (
@@ -767,17 +888,72 @@ function StepBody({
     case "family":
       return (
         <QuestionShell
-          label="Who else depends on this income?"
-          hint="This changes how much of your income is genuinely free for an EMI."
+          label="Are you married or partnered?"
+          hint="We ask only because a second earner — and a second set of essentials — changes what is genuinely free for an EMI."
         >
           <ChoiceGroup
             columns={1}
             value={a.maritalStatus}
             onChange={(maritalStatus) => pick({ maritalStatus })}
             options={[
-              { value: "single", label: "I'm single", sub: "One income, one set of essentials" },
-              { value: "married", label: "I'm married", sub: "We'll ask about your spouse's income next" },
+              { value: "single", label: "No" },
+              { value: "married", label: "Yes", sub: "We'll ask about your spouse's income next" },
               { value: "prefer_not", label: "I'd rather not say" },
+            ]}
+          />
+          <Note>
+            Being married is neither a plus nor a minus here. We only count income that reliably reaches your
+            household, and costs you actually pay.
+          </Note>
+        </QuestionShell>
+      );
+
+    case "dependentsAny":
+      return (
+        <QuestionShell
+          label="Does anyone depend on this income besides you?"
+          hint="Anyone whose essentials you cover, whether or not they live with you."
+        >
+          <ChoiceGroup
+            columns={1}
+            value={a.hasDependents}
+            onChange={(hasDependents) =>
+              pick({
+                hasDependents,
+                dependentTypes: hasDependents === "yes" ? a.dependentTypes : null,
+                numberOfDependents: hasDependents === "yes" ? a.numberOfDependents : null,
+                childrenCount: hasDependents === "yes" ? a.childrenCount : null,
+              })
+            }
+            options={[
+              { value: "yes", label: "Yes" },
+              { value: "no", label: "No, just me" },
+              { value: "unknown", label: "I'd rather not say" },
+            ]}
+          />
+        </QuestionShell>
+      );
+
+    case "dependentsWho":
+      return (
+        <QuestionShell
+          label="Who depends on you?"
+          hint="Pick everyone that applies. We never assume this from your marital status."
+        >
+          <MultiChoice
+            value={a.dependentTypes ?? []}
+            onChange={(dependentTypes) =>
+              setAnswers({
+                dependentTypes,
+                childrenCount: dependentTypes.includes("children") ? a.childrenCount : null,
+              })
+            }
+            options={[
+              { value: "children", label: "Children" },
+              { value: "parents", label: "Parents" },
+              { value: "siblings", label: "Siblings" },
+              { value: "other_family", label: "Spouse or partner not earning" },
+              { value: "other", label: "Someone else" },
             ]}
           />
         </QuestionShell>
@@ -786,15 +962,14 @@ function StepBody({
     case "dependents":
       return (
         <QuestionShell
-          label="How many people depend on you financially?"
-          hint="Parents, siblings, anyone whose essentials you cover. Don't count yourself."
+          label="How many people in total depend on you?"
+          hint="Don't count yourself. This tells us how thin the same income is spread."
         >
           <ChoiceGroup
-            columns={3}
+            columns={4}
             value={a.numberOfDependents}
             onChange={(numberOfDependents) => pick({ numberOfDependents })}
             options={[
-              { value: "0", label: "None" },
               { value: "1", label: "1" },
               { value: "2", label: "2" },
               { value: "3", label: "3" },
@@ -808,42 +983,23 @@ function StepBody({
       return (
         <QuestionShell label="How many children do you support?" hint="School-going or younger.">
           <ChoiceGroup
-            columns={4}
+            columns={3}
             value={a.childrenCount}
             onChange={(childrenCount) => pick({ childrenCount })}
             options={[
-              { value: "0", label: "None" },
               { value: "1", label: "1" },
               { value: "2", label: "2" },
               { value: "3plus", label: "3+" },
             ]}
           />
-        </QuestionShell>
-      );
-
-    case "childrenSpend":
-      return (
-        <QuestionShell
-          label="Roughly what do your children cost each month?"
-          hint="School fees spread over the year, tuition, transport, clothes, medical. A rough figure is fine."
-        >
-          <MoneyInput
-            autoFocus
-            value={a.childrenMonthlyExpenses}
-            onChange={(childrenMonthlyExpenses) => setAnswers({ childrenMonthlyExpenses })}
-            placeholder="12,000"
-            suffix="/month"
-            quickAdd={[5000, 12000, 25000]}
-          />
-          <SkipButton onClick={() => setAnswers({ childrenMonthlyExpenses: null })}>
-            I don't know
-          </SkipButton>
           <Note>
-            We count this as a real household cost, not a penalty for having children. It lowers the EMI we
-            think is comfortable, and nothing else.
+            Children are never a penalty here. What they actually cost shows up in your household expenses on
+            the next screens, and nowhere else.
           </Note>
         </QuestionShell>
       );
+
+
 
     case "spouse":
       return (
@@ -922,8 +1078,11 @@ function StepBody({
             ))}
           </div>
           <Note>
-            Excludes the loan EMIs and insurance we ask about separately, so nothing is counted twice.
+            Include what your children and dependents cost inside these lines — school fees under education,
+            their food under food — so nothing is counted twice. Excludes the loan EMIs and insurance we ask
+            about separately.
           </Note>
+
         </QuestionShell>
       );
 
@@ -961,6 +1120,51 @@ function StepBody({
           />
         </QuestionShell>
       );
+
+    case "cardDebtBalance":
+      return (
+        <QuestionShell
+          label="How much is still outstanding, and what does it cost?"
+          hint="A balance that rolls over is the most expensive money in most households — clearing it frees more room than a new loan gives you."
+        >
+          <div className="space-y-5">
+            <Field label="Balance outstanding" optional>
+              <MoneyInput
+                value={a.cardDebtOutstanding}
+                onChange={(cardDebtOutstanding) => setAnswers({ cardDebtOutstanding })}
+                placeholder="35,000"
+                quickAdd={[10000, 35000, 100000]}
+              />
+            </Field>
+            <Field label="Rate it charges" optional>
+              <ChoiceGroup
+                columns={2}
+                value={a.cardDebtRate}
+                onChange={(cardDebtRate) =>
+                  setAnswers({
+                    cardDebtRate,
+                    highCostDebt:
+                      cardDebtRate === "24to30" || cardDebtRate === "gt30" ? true : a.highCostDebt,
+                  })
+                }
+                options={[
+                  { value: "lt12", label: "Under 12%" },
+                  { value: "12to18", label: "12–18%" },
+                  { value: "18to24", label: "18–24%" },
+                  { value: "24to30", label: "24–30%" },
+                  { value: "gt30", label: "Over 30%" },
+                  { value: "unknown", label: "I don't know" },
+                ]}
+              />
+            </Field>
+          </div>
+          <SkipButton onClick={() => setAnswers({ cardDebtOutstanding: null, cardDebtRate: "unknown" })}>
+            I don't know the balance
+          </SkipButton>
+        </QuestionShell>
+      );
+
+
 
     case "insurance":
       return (
@@ -1180,6 +1384,42 @@ function Field({ label, optional, children }: { label: string; optional?: boolea
         {optional ? <span className="ml-1.5 text-xs font-normal text-muted-foreground">optional</span> : null}
       </p>
       {children}
+    </div>
+  );
+}
+
+/**
+ * A pick-many control. Used where the honest answer is a list — several kinds of
+ * dependents, for instance — instead of forcing a single choice.
+ */
+function MultiChoice<T extends string>({
+  value,
+  onChange,
+  options,
+}: {
+  value: T[];
+  onChange: (next: T[]) => void;
+  options: { value: T; label: string; sub?: string }[];
+}) {
+  return (
+    <div className="grid gap-2.5 sm:grid-cols-2">
+      {options.map((o) => {
+        const on = value.includes(o.value);
+        return (
+          <button
+            key={o.value}
+            type="button"
+            aria-pressed={on}
+            onClick={() => onChange(on ? value.filter((v) => v !== o.value) : [...value, o.value])}
+            className={`rounded-xl border px-4 py-3.5 text-left text-sm transition-colors ${
+              on ? "border-primary bg-primary/15 shadow-card" : "border-input hover:border-foreground/30"
+            }`}
+          >
+            <span className="font-medium">{o.label}</span>
+            {o.sub ? <span className="mt-0.5 block text-xs text-muted-foreground">{o.sub}</span> : null}
+          </button>
+        );
+      })}
     </div>
   );
 }

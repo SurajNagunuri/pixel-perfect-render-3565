@@ -20,6 +20,9 @@ import {
   RATE_BAND,
   RATE_BANDS,
   RATE_FLOORS,
+  RECENT_BOUNCE_RULES,
+  HIGH_COST_DEBT_RULES,
+
   SAFETY_HAIRCUTS,
   SAFE_FOIR,
   SECURED_ROUTE_PURPOSE,
@@ -98,8 +101,26 @@ export function documentedMonthlyIncome(a: Answers): number | null {
   return Math.round(a.documentedAnnualIncome / 12);
 }
 
-export function calculateAssessableIncome(a: Answers): { value: number; reason: string } {
+/**
+ * The monthly income a household can actually plan around. When a variable earner has
+ * told us what a weaker but still normal month brings in, we assess a blend weighted
+ * toward that weaker month rather than their good month.
+ */
+export function plannableIncome(a: Answers): { value: number; usedWeakMonth: boolean } {
   const stated = a.monthlyIncome ?? 0;
+  const weak = a.weakMonthIncome;
+  if (weak === null || weak <= 0 || weak >= stated) return { value: stated, usedWeakMonth: false };
+  const w = INCOME_ASSESSMENT.weakMonthWeight;
+  return { value: Math.round(weak * w + stated * (1 - w)), usedWeakMonth: true };
+}
+
+export function calculateAssessableIncome(a: Answers): { value: number; reason: string } {
+  const plannable = plannableIncome(a);
+  const stated = plannable.value;
+  const weakNote = plannable.usedWeakMonth
+    ? ` Because a weaker month brings in about ₹${(a.weakMonthIncome ?? 0).toLocaleString("en-IN")}, we assess a blended ₹${stated.toLocaleString("en-IN")}/month instead of your better month.`
+    : "";
+
   const type = effectiveIncomeType(a);
   const doc = documentedMonthlyIncome(a);
 
@@ -108,30 +129,34 @@ export function calculateAssessableIncome(a: Answers): { value: number; reason: 
       const used = Math.min(stated > 0 ? stated : doc, doc);
       return {
         value: used,
-        reason: `Lenders assess self-employed income from documents. Your ITR / records show about ₹${doc.toLocaleString("en-IN")}/month, so we assess on that rather than your peak cash months.`,
+        reason: `Lenders assess self-employed income from documents. Your ITR / records show about ₹${doc.toLocaleString("en-IN")}/month, so we assess on that rather than your peak cash months.${weakNote}`,
       };
     }
     const f = INCOME_ASSESSMENT.undocumentedSelfEmployedFactor;
     return {
       value: Math.round(stated * f),
-      reason: `Without documented income, we assess only about ${Math.round(f * 100)}% of your stated cash income — undocumented income is usually discounted heavily.`,
+      reason: `Without documented income, we assess only about ${Math.round(f * 100)}% of your stated cash income — undocumented income is usually discounted heavily.${weakNote}`,
     };
   }
   if (type === "informal") {
     const f = INCOME_ASSESSMENT.informalFactor;
     return {
       value: Math.round(stated * f),
-      reason: `Gig / cash income can dip in a bad month, so we assess about ${Math.round(f * 100)}% of your typical monthly income.`,
+      reason: `Gig / cash income can dip in a bad month, so we assess about ${Math.round(f * 100)}% of your typical monthly income.${weakNote}`,
     };
   }
   if (a.variableIncomePct === "gt25") {
     const f = INCOME_ASSESSMENT.highVariablePayFactor;
     return {
       value: Math.round(stated * f),
-      reason: `More than 25% of your pay is variable, so we assess about ${Math.round(f * 100)}% of it — incentives are not guaranteed.`,
+      reason: `More than 25% of your pay is variable, so we assess about ${Math.round(f * 100)}% of it — incentives are not guaranteed.${weakNote}`,
     };
   }
-  return { value: stated, reason: "We assess your full stated monthly take-home income." };
+  return {
+    value: stated,
+    reason: `We assess your full stated monthly take-home income.${weakNote}`,
+  };
+
 }
 
 /** True when the borrower carries debt priced at or above the high-cost threshold. */
@@ -142,40 +167,36 @@ export function hasExpensiveExistingDebt(a: Answers): boolean {
 
 /** Cash actually in hand each month — never the documented-income discount. */
 export function householdCashIncome(a: Answers, assessed: number): number {
-  return Math.max(assessed, a.monthlyIncome ?? 0);
+  return Math.max(assessed, plannableIncome(a).value);
 }
 
 /* ---------- household picture ---------- */
 
-/** Total monthly household spending, plus the categories the borrower left blank. */
+/**
+ * Total monthly household spending, plus the categories the borrower left blank.
+ * Children's costs are not a separate line: they live inside the same categories
+ * (education, food, medical, transport) so nothing is counted twice.
+ */
 export function householdExpenseTotal(a: Answers): {
   total: number;
-  children: number;
   missing: string[];
   usedLegacy: boolean;
 } {
   const entries = Object.entries(a.expenses) as [ExpenseCategory, number | null][];
   const answered = entries.filter(([, v]) => v !== null);
-  const children = a.childrenMonthlyExpenses ?? 0;
 
   if (answered.length === 0) {
     // Older answers (or a skipped section) may only carry a single combined figure.
     return {
-      total: (a.householdExpenses ?? 0) + children,
-      children,
+      total: a.householdExpenses ?? 0,
       missing: a.householdExpenses === null ? ["all household expense categories"] : [],
       usedLegacy: a.householdExpenses !== null,
     };
   }
-  // Children's costs and the education line overlap, so we count the larger of the
-  // two rather than adding both — double counting would understate real capacity.
-  const education = a.expenses.education ?? 0;
-  const childrenExtra = Math.max(0, children - education);
-  const total = answered.reduce((sum, [, v]) => sum + (v as number), 0) + childrenExtra;
-  const missing = entries
-    .filter(([k, v]) => v === null && !(k === "education" && children > 0))
-    .map(([k]) => EXPENSE_LABELS[k]);
-  return { total, children: childrenExtra, missing, usedLegacy: false };
+  const total = answered.reduce((sum, [, v]) => sum + (v as number), 0);
+  const missing = entries.filter(([, v]) => v === null).map(([k]) => EXPENSE_LABELS[k]);
+  return { total, missing, usedLegacy: false };
+
 }
 
 /**
@@ -253,7 +274,27 @@ export function calculateAffordability(a: Answers) {
   const stability = a.incomeStability ? INCOME_STABILITY_ADJUSTMENTS[a.incomeStability] : null;
   if (stability && stability.haircut > 0) haircuts.push({ label: stability.note, pct: stability.haircut });
   if (a.recentBounce === "yes_3m")
-    haircuts.push({ label: "a missed EMI in the last 3 months", pct: SAFETY_HAIRCUTS.recentBounce });
+    haircuts.push({
+      label: `a missed payment in the last ${RECENT_BOUNCE_RULES.recentMonths} months`,
+      pct: RECENT_BOUNCE_RULES.recentHaircut,
+    });
+  else if (a.recentBounce === "yes_older")
+    haircuts.push({
+      label: "a missed payment earlier in the last year",
+      pct: RECENT_BOUNCE_RULES.olderHaircut,
+    });
+  if (
+    (a.recentBounce === "yes_3m" || a.recentBounce === "yes_older") &&
+    a.bounceCount !== null &&
+    a.bounceCount > 1
+  )
+    haircuts.push({
+      label: `${a.bounceCount} missed payments in the last year`,
+      pct: Math.min(
+        RECENT_BOUNCE_RULES.maxAdditionalHaircut,
+        (a.bounceCount - 1) * RECENT_BOUNCE_RULES.perAdditionalMissHaircut,
+      ),
+    });
   const buffer = a.emergencySavings ? EMERGENCY_BUFFER_ADJUSTMENTS[a.emergencySavings] : null;
   if (buffer && buffer.haircut > 0) haircuts.push({ label: buffer.note, pct: buffer.haircut });
   if (hasExpensiveExistingDebt(a))
@@ -261,6 +302,17 @@ export function calculateAffordability(a: Answers) {
       label: `existing debt above ${HIGH_COST_DEBT_RATE_THRESHOLD}%`,
       pct: SAFETY_HAIRCUTS.highCostDebt,
     });
+  if (
+    a.hasCardDebt === true &&
+    a.cardDebtOutstanding !== null &&
+    cashIncome > 0 &&
+    a.cardDebtOutstanding > cashIncome * HIGH_COST_DEBT_RULES.heavyBalanceMonthsOfIncome
+  )
+    haircuts.push({
+      label: "a revolving card or app-loan balance above a month of income",
+      pct: SAFETY_HAIRCUTS.revolvingBalance,
+    });
+
   if ((a.activeLoans ?? 0) >= DEBT_LOAD.manyActiveLoans)
     haircuts.push({
       label: `${a.activeLoans} loans running at the same time`,
@@ -348,7 +400,7 @@ export function calculateAffordability(a: Answers) {
       borrowerIncome: Math.round(household.borrower),
       spouseContribution: Math.round(household.spouse),
       householdExpenses: Math.round(expenses),
-      childrenExpenses: Math.round(expenseInfo.children),
+      
       existingEmi: existing,
       insurance: insurance.total,
       cardDebt,
@@ -442,10 +494,15 @@ export function calculateFairRate(a: Answers): {
     factors.push("Income that is not visible in filings pushes the upper end higher.");
   }
   if (a.recentBounce === "yes_3m") {
-    low += RATE_ADJUSTMENTS.recentBounceShift;
-    high += RATE_ADJUSTMENTS.recentBounceShift;
-    factors.push("A recent missed EMI is the single biggest pricing penalty.");
+    low += RECENT_BOUNCE_RULES.recentRateShift;
+    high += RECENT_BOUNCE_RULES.recentRateShift;
+    factors.push("A recent missed payment is the single biggest pricing penalty.");
+  } else if (a.recentBounce === "yes_older") {
+    low += RECENT_BOUNCE_RULES.olderRateShift;
+    high += RECENT_BOUNCE_RULES.olderRateShift;
+    factors.push("A missed payment earlier in the year still shows on your record, so pricing is a little higher.");
   }
+
   if (hasExpensiveExistingDebt(a)) {
     high += RATE_ADJUSTMENTS.highCostDebtShift;
     factors.push(
@@ -499,16 +556,25 @@ export function calculateSafeBorrowing(emi: number, rate: Band, months: number) 
 export function calculateLenderLikelySanction(emi: number, rate: Band, months: number, a: Answers) {
   const band = bandFromEmi(emi, rate, months);
   const secured = isSecuredRoute(a);
+  /** An already-mortgaged asset leaves less free value, and "not sure" is treated cautiously. */
+  const encumbrance =
+    a.collateralHasLoan === "yes"
+      ? COLLATERAL.encumberedLtvFactor
+      : a.collateralHasLoan === "unknown"
+        ? COLLATERAL.unknownEncumbranceLtvFactor
+        : 1;
+  const effectiveLtv = COLLATERAL.ltvCap * encumbrance;
   if (secured) {
-    const ltvCap = roundTo((a.collateralValue as number) * COLLATERAL.ltvCap, principalRoundingStep(band.high));
+    const ltvCap = roundTo((a.collateralValue as number) * effectiveLtv, principalRoundingStep(band.high));
     band.low = Math.min(band.low, ltvCap);
     band.high = Math.min(Math.max(band.high, band.low), ltvCap);
   }
   return {
     value: band,
-    reason: `Using the higher lender-style debt-service threshold${secured ? `, and capping at roughly ${Math.round(COLLATERAL.ltvCap * 100)}% of your collateral value` : ""}. This answers "what might they offer", which is a different question from "what should you carry" — the two numbers are computed separately and should not be read as one.`,
+    reason: `Using the higher lender-style debt-service threshold${secured ? `, and capping at roughly ${Math.round(effectiveLtv * 100)}% of your collateral value${encumbrance < 1 ? ` (reduced from ${Math.round(COLLATERAL.ltvCap * 100)}% because the asset ${a.collateralHasLoan === "yes" ? "already carries a loan" : "may already carry a loan"})` : ""}` : ""}. This answers "what might they offer", which is a different question from "what should you carry" — the two numbers are computed separately and should not be read as one.`,
   };
 }
+
 
 
 /* ---------- tenure table & stress ---------- */
@@ -629,10 +695,11 @@ export function generateConfidence(a: Answers) {
     notes.push("Your savings cushion is unknown, which widens the range rather than lowering your capacity.");
   if (a.emergencySavings === "6plus")
     notes.push("A 6+ month savings cushion is the strongest single sign that you can absorb a bad month.");
-  if (expenseInfo.children > 0)
+  if (a.recentBounce === "unknown")
     notes.push(
-      `Your children's monthly costs of ₹${expenseInfo.children.toLocaleString("en-IN")} are counted in your household cash flow, which lowers the EMI we think is comfortable.`,
+      "You weren't sure about missed payments, so we widen the range instead of assuming the worst or the best.",
     );
+
 
   let rate: Confidence = "Medium";
   if (a.creditKnown === "yes" && a.creditScore !== null) {
@@ -782,10 +849,11 @@ export function generateReasons(a: Answers, assessment: Omit<Assessment, "reason
       ? `Debt-service rules would allow about ₹${assessment.foirSafeEmi.toLocaleString("en-IN")}/month, but after household expenses${cf.insurance > 0 ? ", insurance" : ""}${cf.existingEmi > 0 ? " and your existing EMIs" : ""} your safer cash-flow limit is ₹${assessment.safeEmi.value.toLocaleString("en-IN")}/month. We use the lower number.`
       : `Assessed monthly income ₹${Math.round(assessment.assessedMonthlyIncome).toLocaleString("en-IN")}${assessment.documentedMonthlyIncome !== null ? ` (from documented income of ₹${assessment.documentedMonthlyIncome.toLocaleString("en-IN")}/month, not cash takings)` : ""} with a safer debt burden target of ${Math.round(assessment.stress.safeFoirTarget * 100)}%.`,
   );
-  if (cf.childrenExpenses > 0)
+  if (cf.householdExpenses > 0)
     out.push(
-      `Children's costs of ₹${cf.childrenExpenses.toLocaleString("en-IN")}/month are part of your household spending, so they reduce the EMI we call comfortable.`,
+      `Your household runs on ₹${cf.householdExpenses.toLocaleString("en-IN")}/month of living costs before any EMI — that is what sets the comfortable ceiling, not the loan size.`,
     );
+
   if (cf.spouseContribution > 0)
     out.push(
       `We count ₹${cf.spouseContribution.toLocaleString("en-IN")}/month of your spouse's income as reliably available — not the whole amount.`,
@@ -903,13 +971,20 @@ export function runAssessment(a: Answers): Assessment {
   );
 
   const secured = securedRoute
-    ? `You have unencumbered collateral worth about ₹${(a.collateralValue as number).toLocaleString("en-IN")}. Ask specifically about a secured product (loan against property / business loan against collateral) — it is usually several percentage points cheaper than the unsecured quote you'll be offered first, and we have already priced your range as a secured loan.`
+    ? `You have collateral worth about ₹${(a.collateralValue as number).toLocaleString("en-IN")}${a.collateralHasLoan === "yes" ? ", already carrying a loan, so only part of its value is free" : a.collateralHasLoan === "unknown" ? ", though you weren't sure whether it already carries a loan, so we stayed cautious" : " and free of any existing loan"}. Ask specifically about a secured product (loan against property / business loan against collateral) — it is usually several percentage points cheaper than the unsecured quote you'll be offered first, and we have already priced your range as a secured loan. Collateral raises what a lender may sanction; it does not raise what your household can repay each month.`
     : null;
 
   const foirNow =
     aff.incomeBasis.value > 0 ? (requestedEmi + (a.existingEmi ?? 0)) / aff.incomeBasis.value : 1;
 
+  /* Only tenures the borrower could actually be given, and the shortest one that fits. */
+  const tenureRows = tenureTable(requested, midRate, tenurePurpose).filter(
+    (row) => row.months <= tenureLimit.months,
+  );
+  const recommendedTenureMonths = tenureRows.find((row) => row.emi <= aff.safeEmi.value)?.months ?? null;
+
   const partial: Omit<Assessment, "reasons" | "nextSteps"> = {
+
     verdict,
     safeEmi: aff.safeEmi,
     lenderEmi: aff.lenderEmi,
@@ -921,11 +996,11 @@ export function runAssessment(a: Answers): Assessment {
       reason: `${charges.reason} ${aprLow.reason}`,
     },
     requestedEmi,
-    tenureTable: tenureTable(requested, midRate, tenurePurpose).filter(
-      (row) => row.months <= tenureLimit.months || tenureLimit.note === null,
-    ),
+    tenureTable: tenureRows,
+    recommendedTenureMonths,
     assumedTenureMonths: months,
     tenureNote: tenureLimit.note,
+
     upfrontFee: Math.round(charges.fee),
     netDisbursed: Math.round(charges.netDisbursed),
     feeIsQuoted: charges.quoted,

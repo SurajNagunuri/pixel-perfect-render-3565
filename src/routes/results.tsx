@@ -75,7 +75,9 @@ function Results() {
   // Scale every amount bar against the largest number on the page so the gap is honest.
   const amountMax = Math.max(r.lenderAmount.value.high, r.safeAmount.value.high, a.amount ?? 0);
   const emiMax = Math.max(r.lenderEmi.value, r.safeEmi.value, r.requestedEmi, r.stress.emi);
-  const recommended = r.tenureTable.find((row) => row.emi <= r.safeEmi.value) ?? null;
+  const recommended =
+    r.tenureTable.find((row) => row.months === r.recommendedTenureMonths) ?? null;
+
 
   return (
     <Page>
@@ -329,10 +331,8 @@ function Results() {
                     />
                   ) : null}
                   <FlowRow label="Household expenses" value={-r.cashFlow.householdExpenses} />
-                  {r.cashFlow.childrenExpenses > 0 ? (
-                    <FlowRow label="Children" value={-r.cashFlow.childrenExpenses} />
-                  ) : null}
                   {r.cashFlow.existingEmi > 0 ? (
+
                     <FlowRow label="Existing EMIs" value={-r.cashFlow.existingEmi} />
                   ) : null}
                   {r.cashFlow.cardDebt > 0 ? (

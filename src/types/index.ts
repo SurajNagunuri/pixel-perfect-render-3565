@@ -19,21 +19,26 @@ export type VariablePct = "0" | "lt10" | "10to25" | "gt25" | "unknown";
 
 export type HighestRate = "lt12" | "12to18" | "18to24" | "24to30" | "gt30" | "unknown";
 
-export type Bounce = "no" | "yes_3m" | "unknown";
+/** Recent repayment history. "yes_older" is a real signal, just a weaker one. */
+export type Bounce = "no" | "yes_3m" | "yes_older" | "unknown";
 
 export type CreditKnown = "yes" | "no" | "prefer_not";
 
 export type MaritalStatus = "single" | "married" | "prefer_not";
 
-export type DependentCount = "0" | "1" | "2" | "3" | "4plus";
+export type DependentCount = "1" | "2" | "3" | "4plus";
 
-export type ChildCount = "0" | "1" | "2" | "3plus";
+/** Who depends on the income. Never inferred from marital status. */
+export type DependentType = "children" | "parents" | "siblings" | "other_family" | "other";
+
+export type ChildCount = "1" | "2" | "3plus";
 
 export type YesNoUnknown = "yes" | "no" | "unknown";
 
 export type SpouseContributes = "regular" | "sometimes" | "no" | "prefer_not";
 
 export type SpouseShare = "most" | "half" | "smaller" | "unsure";
+
 
 /** Household expense categories, asked one screen at a time. */
 export interface ExpenseBreakdown {
@@ -63,9 +68,13 @@ export interface Answers {
 
   // household shape
   maritalStatus: MaritalStatus | null;
+  /** Does anyone depend on this income at all? Asked before any count. */
+  hasDependents: YesNoUnknown | null;
+  /** Who they are. Children are never assumed from marital status. */
+  dependentTypes: DependentType[] | null;
   numberOfDependents: DependentCount | null;
   childrenCount: ChildCount | null;
-  childrenMonthlyExpenses: number | null;
+
 
   // insurance & protection
   hasInsurance: YesNoUnknown | null;
@@ -81,6 +90,9 @@ export interface Answers {
   // other recurring obligations
   hasCardDebt: boolean | null;
   cardDebtMonthly: number | null;
+  /** Revolving balance still outstanding — the thing that makes it expensive. */
+  cardDebtOutstanding: number | null;
+  cardDebtRate: HighestRate | null;
   hasOtherCommitments: boolean | null;
   otherFixedCommitments: number | null;
   creditKnown: CreditKnown | null;
@@ -93,12 +105,19 @@ export interface Answers {
   // self-employed
   businessVintage: Tenure | null;
   documentedAnnualIncome: number | null;
+  /** What a weaker but still normal month brings in. Asked of variable earners. */
+  weakMonthIncome: number | null;
   hasCollateral: boolean | null;
   collateralValue: number | null;
+  /** Is the collateral already mortgaged or pledged? Unknown is treated cautiously. */
+  collateralHasLoan: YesNoUnknown | null;
 
-  // informal
+  // repayment history (asked of everyone)
   highCostDebt: boolean | null;
   recentBounce: Bounce | null;
+  /** How many missed payments in the last 12 months. */
+  bounceCount: number | null;
+
 
   // shared
   emergencySavings: Savings | null;
@@ -173,7 +192,7 @@ export interface Assessment {
     borrowerIncome: number;
     spouseContribution: number;
     householdExpenses: number;
-    childrenExpenses: number;
+
     existingEmi: number;
     insurance: number;
     cardDebt: number;
@@ -186,9 +205,13 @@ export interface Assessment {
     assumptions: string[];
   };
 
+  /** Shortest offered tenure whose EMI fits the safer ceiling; null if none does. */
+  recommendedTenureMonths: number | null;
+
   /** Which of the two calculations set the safe EMI. */
   bindingConstraint: "debt_service" | "cash_flow";
   foirSafeEmi: number;
+
   foirNow: number;
   reasons: string[];
   nextSteps: string[];
