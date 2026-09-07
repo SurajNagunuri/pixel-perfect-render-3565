@@ -975,11 +975,11 @@ export function runAssessment(a: Answers): Assessment {
       reason: `${charges.reason} ${aprLow.reason}`,
     },
     requestedEmi,
-    tenureTable: tenureTable(requested, midRate, tenurePurpose).filter(
-      (row) => row.months <= tenureLimit.months || tenureLimit.note === null,
-    ),
+    tenureTable: tenureRows,
+    recommendedTenureMonths,
     assumedTenureMonths: months,
     tenureNote: tenureLimit.note,
+
     upfrontFee: Math.round(charges.fee),
     netDisbursed: Math.round(charges.netDisbursed),
     feeIsQuoted: charges.quoted,
