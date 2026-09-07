@@ -703,20 +703,45 @@ function StepBody({
     case "bounce":
       return (
         <QuestionShell
-          label="Have you missed or bounced an EMI recently?"
-          hint="An honest answer here protects you — it's the single biggest pricing penalty."
+          label="Have you missed or bounced any loan or card payment?"
+          hint="An honest answer here protects you — it's the single biggest pricing penalty, and hiding it doesn't remove it from your record."
         >
           <ChoiceGroup
+            columns={1}
             value={a.recentBounce}
-            onChange={(recentBounce) => pick({ recentBounce })}
+            onChange={(recentBounce) =>
+              pick({
+                recentBounce,
+                bounceCount: recentBounce === "no" || recentBounce === "unknown" ? null : a.bounceCount,
+              })
+            }
             options={[
-              { value: "no", label: "No" },
+              { value: "no", label: "No, never" },
               { value: "yes_3m", label: "Yes, in the last 3 months" },
+              { value: "yes_older", label: "Yes, earlier in the past year" },
               { value: "unknown", label: "I'm not sure" },
             ]}
           />
         </QuestionShell>
       );
+
+    case "bounceCount":
+      return (
+        <QuestionShell
+          label="How many payments have you missed in the last year?"
+          hint="One slip reads very differently from a pattern, so this changes how conservative we are."
+        >
+          <PlainInput
+            autoFocus
+            value={a.bounceCount}
+            onChange={(bounceCount) => setAnswers({ bounceCount })}
+            placeholder="1"
+            suffix="payments"
+          />
+          <SkipButton onClick={() => setAnswers({ bounceCount: null })}>I don't remember</SkipButton>
+        </QuestionShell>
+      );
+
 
     case "existingEmi":
       return (
