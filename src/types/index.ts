@@ -205,9 +205,13 @@ export interface Assessment {
     assumptions: string[];
   };
 
+  /** Shortest offered tenure whose EMI fits the safer ceiling; null if none does. */
+  recommendedTenureMonths: number | null;
+
   /** Which of the two calculations set the safe EMI. */
   bindingConstraint: "debt_service" | "cash_flow";
   foirSafeEmi: number;
+
   foirNow: number;
   reasons: string[];
   nextSteps: string[];
