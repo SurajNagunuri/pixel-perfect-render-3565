@@ -1005,6 +1005,51 @@ function StepBody({
         </QuestionShell>
       );
 
+    case "cardDebtBalance":
+      return (
+        <QuestionShell
+          label="How much is still outstanding, and what does it cost?"
+          hint="A balance that rolls over is the most expensive money in most households — clearing it frees more room than a new loan gives you."
+        >
+          <div className="space-y-5">
+            <Field label="Balance outstanding" optional>
+              <MoneyInput
+                value={a.cardDebtOutstanding}
+                onChange={(cardDebtOutstanding) => setAnswers({ cardDebtOutstanding })}
+                placeholder="35,000"
+                quickAdd={[10000, 35000, 100000]}
+              />
+            </Field>
+            <Field label="Rate it charges" optional>
+              <ChoiceGroup
+                columns={2}
+                value={a.cardDebtRate}
+                onChange={(cardDebtRate) =>
+                  setAnswers({
+                    cardDebtRate,
+                    highCostDebt:
+                      cardDebtRate === "24to30" || cardDebtRate === "gt30" ? true : a.highCostDebt,
+                  })
+                }
+                options={[
+                  { value: "lt12", label: "Under 12%" },
+                  { value: "12to18", label: "12–18%" },
+                  { value: "18to24", label: "18–24%" },
+                  { value: "24to30", label: "24–30%" },
+                  { value: "gt30", label: "Over 30%" },
+                  { value: "unknown", label: "I don't know" },
+                ]}
+              />
+            </Field>
+          </div>
+          <SkipButton onClick={() => setAnswers({ cardDebtOutstanding: null, cardDebtRate: "unknown" })}>
+            I don't know the balance
+          </SkipButton>
+        </QuestionShell>
+      );
+
+
+
     case "insurance":
       return (
         <QuestionShell
