@@ -494,10 +494,15 @@ export function calculateFairRate(a: Answers): {
     factors.push("Income that is not visible in filings pushes the upper end higher.");
   }
   if (a.recentBounce === "yes_3m") {
-    low += RATE_ADJUSTMENTS.recentBounceShift;
-    high += RATE_ADJUSTMENTS.recentBounceShift;
-    factors.push("A recent missed EMI is the single biggest pricing penalty.");
+    low += RECENT_BOUNCE_RULES.recentRateShift;
+    high += RECENT_BOUNCE_RULES.recentRateShift;
+    factors.push("A recent missed payment is the single biggest pricing penalty.");
+  } else if (a.recentBounce === "yes_older") {
+    low += RECENT_BOUNCE_RULES.olderRateShift;
+    high += RECENT_BOUNCE_RULES.olderRateShift;
+    factors.push("A missed payment earlier in the year still shows on your record, so pricing is a little higher.");
   }
+
   if (hasExpensiveExistingDebt(a)) {
     high += RATE_ADJUSTMENTS.highCostDebtShift;
     factors.push(
