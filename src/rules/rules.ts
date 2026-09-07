@@ -243,7 +243,15 @@ export const COLLATERAL = {
   ltvCap: 0.6,
   /** Collateral above this value routes the assessment to a secured product. */
   minValueToRouteSecured: 100000,
+  /** Already mortgaged or pledged — only part of the value is really free. */
+  encumberedLtvFactor: 0.5,
+  /** Borrower isn't sure whether it carries a loan, so we stay cautious. */
+  unknownEncumbranceLtvFactor: 0.75,
+  reason:
+    "Collateral raises what a lender may sanction. It never raises what your household can afford to repay each month.",
+  type: "my judgement" as const,
 };
+
 
 /** A borrower is treated as carrying expensive debt at or above this annual rate. */
 export const HIGH_COST_DEBT_RATE_THRESHOLD = 24;
