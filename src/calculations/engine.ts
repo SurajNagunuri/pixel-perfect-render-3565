@@ -834,10 +834,11 @@ export function generateReasons(a: Answers, assessment: Omit<Assessment, "reason
       ? `Debt-service rules would allow about ₹${assessment.foirSafeEmi.toLocaleString("en-IN")}/month, but after household expenses${cf.insurance > 0 ? ", insurance" : ""}${cf.existingEmi > 0 ? " and your existing EMIs" : ""} your safer cash-flow limit is ₹${assessment.safeEmi.value.toLocaleString("en-IN")}/month. We use the lower number.`
       : `Assessed monthly income ₹${Math.round(assessment.assessedMonthlyIncome).toLocaleString("en-IN")}${assessment.documentedMonthlyIncome !== null ? ` (from documented income of ₹${assessment.documentedMonthlyIncome.toLocaleString("en-IN")}/month, not cash takings)` : ""} with a safer debt burden target of ${Math.round(assessment.stress.safeFoirTarget * 100)}%.`,
   );
-  if (cf.childrenExpenses > 0)
+  if (cf.householdExpenses > 0)
     out.push(
-      `Children's costs of ₹${cf.childrenExpenses.toLocaleString("en-IN")}/month are part of your household spending, so they reduce the EMI we call comfortable.`,
+      `Your household runs on ₹${cf.householdExpenses.toLocaleString("en-IN")}/month of living costs before any EMI — that is what sets the comfortable ceiling, not the loan size.`,
     );
+
   if (cf.spouseContribution > 0)
     out.push(
       `We count ₹${cf.spouseContribution.toLocaleString("en-IN")}/month of your spouse's income as reliably available — not the whole amount.`,
