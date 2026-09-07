@@ -400,7 +400,7 @@ export function calculateAffordability(a: Answers) {
       borrowerIncome: Math.round(household.borrower),
       spouseContribution: Math.round(household.spouse),
       householdExpenses: Math.round(expenses),
-      childrenExpenses: Math.round(expenseInfo.children),
+      
       existingEmi: existing,
       insurance: insurance.total,
       cardDebt,
