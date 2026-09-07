@@ -91,10 +91,44 @@ export const SAFETY_HAIRCUTS = {
   variableIncomeHigh: 0.15,
   incomeVariesALot: 0.15,
   recentBounce: 0.25,
+  /** A missed payment older than 3 months still matters, just less. */
+  olderBounce: 0.1,
   lowSavings: 0.1,
   highCostDebt: 0.15,
+  /** A revolving card / app-loan balance, separate from its monthly payment. */
+  revolvingBalance: 0.1,
   stretchedHousehold: 0.15,
 };
+
+/**
+ * Missed-payment rules. A recent miss is the strongest single signal we hold, and
+ * repeated misses compound it. "I'm not sure" widens confidence instead of penalising.
+ */
+export const RECENT_BOUNCE_RULES = {
+  recentMonths: 3,
+  recentHaircut: SAFETY_HAIRCUTS.recentBounce,
+  olderHaircut: SAFETY_HAIRCUTS.olderBounce,
+  /** Extra haircut per additional miss beyond the first, in the last 12 months. */
+  perAdditionalMissHaircut: 0.05,
+  maxAdditionalHaircut: 0.15,
+  recentRateShift: RATE_ADJUSTMENTS.recentBounceShift,
+  olderRateShift: 1,
+  type: "my judgement" as const,
+};
+
+/**
+ * Expensive existing debt. Clearing it frees more room than a new loan creates, so
+ * we both price it in and say so.
+ */
+export const HIGH_COST_DEBT_RULES = {
+  rateThreshold: 24,
+  haircut: SAFETY_HAIRCUTS.highCostDebt,
+  rateShift: RATE_ADJUSTMENTS.highCostDebtShift,
+  /** Revolving balance above this multiple of monthly income is treated as heavy. */
+  heavyBalanceMonthsOfIncome: 1,
+  type: "my judgement" as const,
+};
+
 
 export const HIGHEST_RATE_VALUE: Record<HighestRate, number | null> = {
   lt12: 11,
