@@ -90,6 +90,9 @@ export interface Answers {
   // other recurring obligations
   hasCardDebt: boolean | null;
   cardDebtMonthly: number | null;
+  /** Revolving balance still outstanding — the thing that makes it expensive. */
+  cardDebtOutstanding: number | null;
+  cardDebtRate: HighestRate | null;
   hasOtherCommitments: boolean | null;
   otherFixedCommitments: number | null;
   creditKnown: CreditKnown | null;
@@ -102,12 +105,19 @@ export interface Answers {
   // self-employed
   businessVintage: Tenure | null;
   documentedAnnualIncome: number | null;
+  /** What a weaker but still normal month brings in. Asked of variable earners. */
+  weakMonthIncome: number | null;
   hasCollateral: boolean | null;
   collateralValue: number | null;
+  /** Is the collateral already mortgaged or pledged? Unknown is treated cautiously. */
+  collateralHasLoan: YesNoUnknown | null;
 
-  // informal
+  // repayment history (asked of everyone)
   highCostDebt: boolean | null;
   recentBounce: Bounce | null;
+  /** How many missed payments in the last 12 months. */
+  bounceCount: number | null;
+
 
   // shared
   emergencySavings: Savings | null;
