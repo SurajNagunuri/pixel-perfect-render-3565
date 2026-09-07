@@ -68,9 +68,13 @@ export interface Answers {
 
   // household shape
   maritalStatus: MaritalStatus | null;
+  /** Does anyone depend on this income at all? Asked before any count. */
+  hasDependents: YesNoUnknown | null;
+  /** Who they are. Children are never assumed from marital status. */
+  dependentTypes: DependentType[] | null;
   numberOfDependents: DependentCount | null;
   childrenCount: ChildCount | null;
-  childrenMonthlyExpenses: number | null;
+
 
   // insurance & protection
   hasInsurance: YesNoUnknown | null;
