@@ -412,6 +412,9 @@ function validate(step: StepId, a: Answers): string | null {
       return a.hasCardDebt === null ? "Choose yes or no." : null;
     case "cardDebtAmount":
       return a.cardDebtMonthly === null ? "Enter a rough monthly payment." : null;
+    case "cardDebtBalance":
+      return null;
+
     case "commitments":
       return a.hasOtherCommitments === null ? "Choose yes or no." : null;
     case "commitmentsAmount":
