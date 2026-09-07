@@ -329,9 +329,8 @@ function Results() {
                     />
                   ) : null}
                   <FlowRow label="Household expenses" value={-r.cashFlow.householdExpenses} />
-                  {r.cashFlow.childrenExpenses > 0 ? (
-                    <FlowRow label="Children" value={-r.cashFlow.childrenExpenses} />
-                  ) : null}
+                  {r.cashFlow.existingEmi > 0 ? (
+
                   {r.cashFlow.existingEmi > 0 ? (
                     <FlowRow label="Existing EMIs" value={-r.cashFlow.existingEmi} />
                   ) : null}
