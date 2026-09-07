@@ -98,8 +98,26 @@ export function documentedMonthlyIncome(a: Answers): number | null {
   return Math.round(a.documentedAnnualIncome / 12);
 }
 
-export function calculateAssessableIncome(a: Answers): { value: number; reason: string } {
+/**
+ * The monthly income a household can actually plan around. When a variable earner has
+ * told us what a weaker but still normal month brings in, we assess a blend weighted
+ * toward that weaker month rather than their good month.
+ */
+export function plannableIncome(a: Answers): { value: number; usedWeakMonth: boolean } {
   const stated = a.monthlyIncome ?? 0;
+  const weak = a.weakMonthIncome;
+  if (weak === null || weak <= 0 || weak >= stated) return { value: stated, usedWeakMonth: false };
+  const w = INCOME_ASSESSMENT.weakMonthWeight;
+  return { value: Math.round(weak * w + stated * (1 - w)), usedWeakMonth: true };
+}
+
+export function calculateAssessableIncome(a: Answers): { value: number; reason: string } {
+  const plannable = plannableIncome(a);
+  const stated = plannable.value;
+  const weakNote = plannable.usedWeakMonth
+    ? ` Because a weaker month brings in about ₹${(a.weakMonthIncome ?? 0).toLocaleString("en-IN")}, we assess a blended ₹${stated.toLocaleString("en-IN")}/month instead of your better month.`
+    : "";
+
   const type = effectiveIncomeType(a);
   const doc = documentedMonthlyIncome(a);
 
