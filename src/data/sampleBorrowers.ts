@@ -132,14 +132,15 @@ export const sampleBorrowers: SampleBorrower[] = [
     name: "Ravi, 42 · Mysuru",
     blurb: "Self-employed kirana owner · wants ₹15L for stock + a delivery vehicle",
     detail:
-      "14 years in business, cash income ₹40,000–80,000/month, ITR shows ₹4,20,000/year, unencumbered shop worth ₹45L, no credit score, wife earns ₹18,000 occasionally, two children in school.",
+      "14 years in business, cash income ₹55,000–90,000/month, ITR shows ₹4,20,000/year, unencumbered shop worth ₹45L, no credit score, wife earns ₹18,000 occasionally, two children in school.",
     answers: {
       ...emptyAnswers,
       purpose: "business",
       amount: 1500000,
       incomeType: "self_employed",
-      monthlyIncome: 60000,
-      weakMonthIncome: 40000,
+      monthlyIncome: 75000,
+      weakMonthIncome: 55000,
+
       incomeStability: "varies_some",
       existingEmi: 0,
       expenses: {
