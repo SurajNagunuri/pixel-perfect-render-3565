@@ -551,16 +551,25 @@ export function calculateSafeBorrowing(emi: number, rate: Band, months: number) 
 export function calculateLenderLikelySanction(emi: number, rate: Band, months: number, a: Answers) {
   const band = bandFromEmi(emi, rate, months);
   const secured = isSecuredRoute(a);
+  /** An already-mortgaged asset leaves less free value, and "not sure" is treated cautiously. */
+  const encumbrance =
+    a.collateralHasLoan === "yes"
+      ? COLLATERAL.encumberedLtvFactor
+      : a.collateralHasLoan === "unknown"
+        ? COLLATERAL.unknownEncumbranceLtvFactor
+        : 1;
+  const effectiveLtv = COLLATERAL.ltvCap * encumbrance;
   if (secured) {
-    const ltvCap = roundTo((a.collateralValue as number) * COLLATERAL.ltvCap, principalRoundingStep(band.high));
+    const ltvCap = roundTo((a.collateralValue as number) * effectiveLtv, principalRoundingStep(band.high));
     band.low = Math.min(band.low, ltvCap);
     band.high = Math.min(Math.max(band.high, band.low), ltvCap);
   }
   return {
     value: band,
-    reason: `Using the higher lender-style debt-service threshold${secured ? `, and capping at roughly ${Math.round(COLLATERAL.ltvCap * 100)}% of your collateral value` : ""}. This answers "what might they offer", which is a different question from "what should you carry" — the two numbers are computed separately and should not be read as one.`,
+    reason: `Using the higher lender-style debt-service threshold${secured ? `, and capping at roughly ${Math.round(effectiveLtv * 100)}% of your collateral value${encumbrance < 1 ? ` (reduced from ${Math.round(COLLATERAL.ltvCap * 100)}% because the asset ${a.collateralHasLoan === "yes" ? "already carries a loan" : "may already carry a loan"})` : ""}` : ""}. This answers "what might they offer", which is a different question from "what should you carry" — the two numbers are computed separately and should not be read as one.`,
   };
 }
+
 
 
 /* ---------- tenure table & stress ---------- */
