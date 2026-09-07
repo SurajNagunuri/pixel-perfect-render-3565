@@ -683,6 +683,31 @@ function StepBody({
         </QuestionShell>
       );
 
+    case "collateralLoan":
+      return (
+        <QuestionShell
+          label="Does that property or gold already have a loan on it?"
+          hint="An asset that is already mortgaged or pledged has less free value, so a lender can lend less against it."
+        >
+          <ChoiceGroup
+            columns={1}
+            value={a.collateralHasLoan}
+            onChange={(collateralHasLoan) => pick({ collateralHasLoan })}
+            options={[
+              { value: "no", label: "No, it's free of any loan" },
+              { value: "yes", label: "Yes, a loan is already running on it" },
+              { value: "unknown", label: "I'm not sure" },
+            ]}
+          />
+          <Note>
+            Collateral raises what a lender may sanction. It never raises what your household can afford to
+            repay each month — those stay two separate numbers.
+          </Note>
+        </QuestionShell>
+      );
+
+
+
     case "highCostDebt":
       return (
         <QuestionShell
