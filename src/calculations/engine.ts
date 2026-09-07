@@ -126,30 +126,34 @@ export function calculateAssessableIncome(a: Answers): { value: number; reason: 
       const used = Math.min(stated > 0 ? stated : doc, doc);
       return {
         value: used,
-        reason: `Lenders assess self-employed income from documents. Your ITR / records show about ₹${doc.toLocaleString("en-IN")}/month, so we assess on that rather than your peak cash months.`,
+        reason: `Lenders assess self-employed income from documents. Your ITR / records show about ₹${doc.toLocaleString("en-IN")}/month, so we assess on that rather than your peak cash months.${weakNote}`,
       };
     }
     const f = INCOME_ASSESSMENT.undocumentedSelfEmployedFactor;
     return {
       value: Math.round(stated * f),
-      reason: `Without documented income, we assess only about ${Math.round(f * 100)}% of your stated cash income — undocumented income is usually discounted heavily.`,
+      reason: `Without documented income, we assess only about ${Math.round(f * 100)}% of your stated cash income — undocumented income is usually discounted heavily.${weakNote}`,
     };
   }
   if (type === "informal") {
     const f = INCOME_ASSESSMENT.informalFactor;
     return {
       value: Math.round(stated * f),
-      reason: `Gig / cash income can dip in a bad month, so we assess about ${Math.round(f * 100)}% of your typical monthly income.`,
+      reason: `Gig / cash income can dip in a bad month, so we assess about ${Math.round(f * 100)}% of your typical monthly income.${weakNote}`,
     };
   }
   if (a.variableIncomePct === "gt25") {
     const f = INCOME_ASSESSMENT.highVariablePayFactor;
     return {
       value: Math.round(stated * f),
-      reason: `More than 25% of your pay is variable, so we assess about ${Math.round(f * 100)}% of it — incentives are not guaranteed.`,
+      reason: `More than 25% of your pay is variable, so we assess about ${Math.round(f * 100)}% of it — incentives are not guaranteed.${weakNote}`,
     };
   }
-  return { value: stated, reason: "We assess your full stated monthly take-home income." };
+  return {
+    value: stated,
+    reason: `We assess your full stated monthly take-home income.${weakNote}`,
+  };
+
 }
 
 /** True when the borrower carries debt priced at or above the high-cost threshold. */
