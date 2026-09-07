@@ -164,40 +164,36 @@ export function hasExpensiveExistingDebt(a: Answers): boolean {
 
 /** Cash actually in hand each month — never the documented-income discount. */
 export function householdCashIncome(a: Answers, assessed: number): number {
-  return Math.max(assessed, a.monthlyIncome ?? 0);
+  return Math.max(assessed, plannableIncome(a).value);
 }
 
 /* ---------- household picture ---------- */
 
-/** Total monthly household spending, plus the categories the borrower left blank. */
+/**
+ * Total monthly household spending, plus the categories the borrower left blank.
+ * Children's costs are not a separate line: they live inside the same categories
+ * (education, food, medical, transport) so nothing is counted twice.
+ */
 export function householdExpenseTotal(a: Answers): {
   total: number;
-  children: number;
   missing: string[];
   usedLegacy: boolean;
 } {
   const entries = Object.entries(a.expenses) as [ExpenseCategory, number | null][];
   const answered = entries.filter(([, v]) => v !== null);
-  const children = a.childrenMonthlyExpenses ?? 0;
 
   if (answered.length === 0) {
     // Older answers (or a skipped section) may only carry a single combined figure.
     return {
-      total: (a.householdExpenses ?? 0) + children,
-      children,
+      total: a.householdExpenses ?? 0,
       missing: a.householdExpenses === null ? ["all household expense categories"] : [],
       usedLegacy: a.householdExpenses !== null,
     };
   }
-  // Children's costs and the education line overlap, so we count the larger of the
-  // two rather than adding both — double counting would understate real capacity.
-  const education = a.expenses.education ?? 0;
-  const childrenExtra = Math.max(0, children - education);
-  const total = answered.reduce((sum, [, v]) => sum + (v as number), 0) + childrenExtra;
-  const missing = entries
-    .filter(([k, v]) => v === null && !(k === "education" && children > 0))
-    .map(([k]) => EXPENSE_LABELS[k]);
-  return { total, children: childrenExtra, missing, usedLegacy: false };
+  const total = answered.reduce((sum, [, v]) => sum + (v as number), 0);
+  const missing = entries.filter(([, v]) => v === null).map(([k]) => EXPENSE_LABELS[k]);
+  return { total, missing, usedLegacy: false };
+
 }
 
 /**
