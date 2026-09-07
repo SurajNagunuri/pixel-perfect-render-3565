@@ -965,8 +965,11 @@ function StepBody({
             ))}
           </div>
           <Note>
-            Excludes the loan EMIs and insurance we ask about separately, so nothing is counted twice.
+            Include what your children and dependents cost inside these lines — school fees under education,
+            their food under food — so nothing is counted twice. Excludes the loan EMIs and insurance we ask
+            about separately.
           </Note>
+
         </QuestionShell>
       );
 
