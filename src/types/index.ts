@@ -19,21 +19,26 @@ export type VariablePct = "0" | "lt10" | "10to25" | "gt25" | "unknown";
 
 export type HighestRate = "lt12" | "12to18" | "18to24" | "24to30" | "gt30" | "unknown";
 
-export type Bounce = "no" | "yes_3m" | "unknown";
+/** Recent repayment history. "yes_older" is a real signal, just a weaker one. */
+export type Bounce = "no" | "yes_3m" | "yes_older" | "unknown";
 
 export type CreditKnown = "yes" | "no" | "prefer_not";
 
 export type MaritalStatus = "single" | "married" | "prefer_not";
 
-export type DependentCount = "0" | "1" | "2" | "3" | "4plus";
+export type DependentCount = "1" | "2" | "3" | "4plus";
 
-export type ChildCount = "0" | "1" | "2" | "3plus";
+/** Who depends on the income. Never inferred from marital status. */
+export type DependentType = "children" | "parents" | "siblings" | "other_family" | "other";
+
+export type ChildCount = "1" | "2" | "3plus";
 
 export type YesNoUnknown = "yes" | "no" | "unknown";
 
 export type SpouseContributes = "regular" | "sometimes" | "no" | "prefer_not";
 
 export type SpouseShare = "most" | "half" | "smaller" | "unsure";
+
 
 /** Household expense categories, asked one screen at a time. */
 export interface ExpenseBreakdown {
