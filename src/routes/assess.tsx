@@ -369,26 +369,37 @@ function validate(step: StepId, a: Answers): string | null {
       return null;
     case "stability":
       return a.incomeStability ? null : "Tell us how stable that income is.";
+    case "weakMonth":
+      return null;
     case "collateral":
       return a.hasCollateral === null ? "Choose yes or no." : null;
+    case "collateralLoan":
+      return a.collateralHasLoan === null ? "Choose one option." : null;
     case "bounce":
       return a.recentBounce === null ? "Choose one option." : null;
+    case "bounceCount":
+      return null;
     case "existingEmi":
       return a.existingEmi === null ? "Enter your current EMIs, or tap “I have no EMIs”." : null;
     case "family":
       return a.maritalStatus === null ? "Choose one option." : null;
+    case "dependentsAny":
+      return a.hasDependents === null ? "Choose one option." : null;
+    case "dependentsWho":
+      return a.dependentTypes === null || a.dependentTypes.length === 0
+        ? "Pick at least one, or go back and say nobody depends on you."
+        : null;
     case "dependents":
       return a.numberOfDependents === null ? "Choose one option." : null;
     case "children":
       return a.childrenCount === null ? "Choose one option." : null;
-    case "childrenSpend":
-      return null;
     case "spouse":
       return a.spouseContributes === null ? "Choose one option." : null;
     case "spouseIncome":
       return null;
     case "spouseShare":
       return a.spouseReliableContribution === null ? "Choose one option." : null;
+
     case "expenses": {
       const filled = Object.values(a.expenses).some((v) => v !== null);
       if (!filled && a.householdExpenses === null)
