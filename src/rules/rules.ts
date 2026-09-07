@@ -155,7 +155,15 @@ export const INCOME_ASSESSMENT = {
   informalFactor: 0.85,
   /** Salaried where more than 25% of pay is variable/incentive-based. */
   highVariablePayFactor: 0.85,
+  /**
+   * When a variable earner tells us what a weaker but normal month brings in, we
+   * assess a blend rather than the good month — weighted toward the weak month.
+   */
+  weakMonthWeight: 0.6,
+  weakMonthReason:
+    "For income that moves month to month we assess a blend weighted toward your weaker month, because the EMI has to survive that month too.",
 };
+
 
 export const HOUSEHOLD = {
   /** Share of leftover household cash (after expenses and existing EMIs) a new EMI may use. */
