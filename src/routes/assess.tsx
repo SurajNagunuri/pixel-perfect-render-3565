@@ -560,6 +560,34 @@ function StepBody({
         </QuestionShell>
       );
 
+    case "weakMonth":
+      return (
+        <QuestionShell
+          label="What do you usually earn in a weaker but normal month?"
+          hint="Not your worst month ever — a normal slow one. The EMI has to survive that month too, so we assess a blend weighted toward it."
+        >
+          <MoneyInput
+            autoFocus
+            value={a.weakMonthIncome}
+            onChange={(weakMonthIncome) => setAnswers({ weakMonthIncome })}
+            placeholder={a.monthlyIncome ? String(Math.round(a.monthlyIncome * 0.7)) : "40,000"}
+            suffix="/month"
+          />
+          {a.weakMonthIncome && a.monthlyIncome && a.weakMonthIncome < a.monthlyIncome ? (
+            <Note>
+              We'll assess a blend of {formatINR(a.weakMonthIncome)} and {formatINR(a.monthlyIncome)} rather
+              than your better month.
+            </Note>
+          ) : (
+            <SkipButton onClick={() => setAnswers({ weakMonthIncome: null })}>
+              Skip — my income doesn't really dip
+            </SkipButton>
+          )}
+        </QuestionShell>
+      );
+
+
+
     case "employmentTenure":
       return (
         <QuestionShell label="How long have you been working?" hint="Longer tenure earns a better starting rate.">
