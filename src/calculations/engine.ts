@@ -681,10 +681,11 @@ export function generateConfidence(a: Answers) {
     notes.push("Your savings cushion is unknown, which widens the range rather than lowering your capacity.");
   if (a.emergencySavings === "6plus")
     notes.push("A 6+ month savings cushion is the strongest single sign that you can absorb a bad month.");
-  if (expenseInfo.children > 0)
+  if (a.recentBounce === "unknown")
     notes.push(
-      `Your children's monthly costs of ₹${expenseInfo.children.toLocaleString("en-IN")} are counted in your household cash flow, which lowers the EMI we think is comfortable.`,
+      "You weren't sure about missed payments, so we widen the range instead of assuming the worst or the best.",
     );
+
 
   let rate: Confidence = "Medium";
   if (a.creditKnown === "yes" && a.creditScore !== null) {
