@@ -34,18 +34,22 @@ type StepId =
   | "incomeType"
   | "income"
   | "stability"
+  | "weakMonth"
   | "employmentTenure"
   | "variablePct"
   | "businessVintage"
   | "documented"
   | "collateral"
   | "collateralValue"
+  | "collateralLoan"
   | "highCostDebt"
   | "bounce"
+  | "bounceCount"
   | "family"
+  | "dependentsAny"
+  | "dependentsWho"
   | "dependents"
   | "children"
-  | "childrenSpend"
   | "spouse"
   | "spouseIncome"
   | "spouseShare"
@@ -55,6 +59,7 @@ type StepId =
   | "debtRate"
   | "cardDebt"
   | "cardDebtAmount"
+  | "cardDebtBalance"
   | "expenses"
   | "insurance"
   | "insuranceDetail"
@@ -90,16 +95,19 @@ const SECTION_OF: Record<StepId, Section> = {
   incomeType: "Your income",
   income: "Your income",
   stability: "Your income",
+  weakMonth: "Your income",
   employmentTenure: "Your income",
   variablePct: "Your income",
   businessVintage: "Your income",
   documented: "Your income",
   collateral: "Your income",
   collateralValue: "Your income",
+  collateralLoan: "Your income",
   family: "Your household",
+  dependentsAny: "Your household",
+  dependentsWho: "Your household",
   dependents: "Your household",
   children: "Your household",
-  childrenSpend: "Your household",
   spouse: "Your household",
   spouseIncome: "Your household",
   spouseShare: "Your household",
@@ -110,12 +118,14 @@ const SECTION_OF: Record<StepId, Section> = {
   debtRate: "Your commitments",
   cardDebt: "Your commitments",
   cardDebtAmount: "Your commitments",
+  cardDebtBalance: "Your commitments",
   insurance: "Your commitments",
   insuranceDetail: "Your commitments",
   commitments: "Your commitments",
   commitmentsAmount: "Your commitments",
   highCostDebt: "Your commitments",
   bounce: "Your commitments",
+  bounceCount: "Your commitments",
   savings: "Your cushion",
   age: "Your cushion",
   credit: "Your cushion",
@@ -137,27 +147,41 @@ const AUTO_ADVANCE: StepId[] = [
   "bounce",
   "savings",
   "family",
+  "dependentsAny",
   "dependents",
   "children",
   "spouseShare",
+  "collateralLoan",
 ];
+
+/** True when income moves month to month, so a weaker-month figure is worth asking for. */
+function hasVariableIncome(a: Answers): boolean {
+  return (
+    a.incomeType === "self_employed" ||
+    a.incomeType === "informal" ||
+    a.incomeType === "mixed" ||
+    a.variableIncomePct === "gt25" ||
+    a.incomeStability === "varies_some" ||
+    a.incomeStability === "varies_a_lot"
+  );
+}
 
 /** Adaptive branching: a borrower only ever sees questions that change their result. */
 function visibleSteps(a: Answers): StepId[] {
   const steps: StepId[] = ["purpose", "amount", "incomeType", "income", "stability"];
 
+  if (hasVariableIncome(a)) steps.push("weakMonth");
   if (a.incomeType === "salaried" || a.incomeType === "mixed") steps.push("employmentTenure", "variablePct");
-  if (a.incomeType === "self_employed" || a.incomeType === "mixed") {
-    steps.push("businessVintage", "documented", "collateral");
-    if (a.hasCollateral === true) steps.push("collateralValue");
-  }
-  if (a.incomeType === "informal") steps.push("highCostDebt", "bounce");
+  if (a.incomeType === "self_employed" || a.incomeType === "mixed") steps.push("businessVintage", "documented");
+  steps.push("collateral");
+  if (a.hasCollateral === true) steps.push("collateralValue", "collateralLoan");
 
   // Household shape: asked after income, because it changes cash-flow capacity, not pricing.
-  steps.push("family", "dependents");
-  const hasDependents = a.numberOfDependents !== null && a.numberOfDependents !== "0";
-  if (a.maritalStatus === "married" || hasDependents) steps.push("children");
-  if (a.childrenCount !== null && a.childrenCount !== "0") steps.push("childrenSpend");
+  steps.push("family", "dependentsAny");
+  if (a.hasDependents === "yes") {
+    steps.push("dependentsWho", "dependents");
+    if (a.dependentTypes?.includes("children")) steps.push("children");
+  }
   if (a.maritalStatus === "married") {
     steps.push("spouse");
     if (a.spouseContributes === "regular" || a.spouseContributes === "sometimes")
@@ -168,12 +192,16 @@ function visibleSteps(a: Answers): StepId[] {
   steps.push("existingEmi");
   if ((a.existingEmi ?? 0) > 0) steps.push("debtCount", "debtOutstanding", "debtRate");
   steps.push("cardDebt");
-  if (a.hasCardDebt === true) steps.push("cardDebtAmount");
+  if (a.hasCardDebt === true) steps.push("cardDebtAmount", "cardDebtBalance");
 
   steps.push("insurance");
   if (a.hasInsurance === "yes") steps.push("insuranceDetail");
   steps.push("commitments");
   if (a.hasOtherCommitments === true) steps.push("commitmentsAmount");
+
+  // Repayment history matters for every borrower, not only informal earners.
+  steps.push("highCostDebt", "bounce");
+  if (a.recentBounce === "yes_3m" || a.recentBounce === "yes_older") steps.push("bounceCount");
 
   steps.push("savings", "age", "credit");
   if (a.creditKnown === "yes") steps.push("creditScore");
@@ -182,6 +210,7 @@ function visibleSteps(a: Answers): StepId[] {
   if (a.hasOffer === true) steps.push("offerDetail");
   return steps;
 }
+
 
 function Assess() {
   const a = useAnswers();
