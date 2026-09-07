@@ -192,7 +192,7 @@ export interface Assessment {
     borrowerIncome: number;
     spouseContribution: number;
     householdExpenses: number;
-    childrenExpenses: number;
+
     existingEmi: number;
     insurance: number;
     cardDebt: number;
