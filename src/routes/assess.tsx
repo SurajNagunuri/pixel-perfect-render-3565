@@ -1387,3 +1387,39 @@ function Field({ label, optional, children }: { label: string; optional?: boolea
     </div>
   );
 }
+
+/**
+ * A pick-many control. Used where the honest answer is a list — several kinds of
+ * dependents, for instance — instead of forcing a single choice.
+ */
+function MultiChoice<T extends string>({
+  value,
+  onChange,
+  options,
+}: {
+  value: T[];
+  onChange: (next: T[]) => void;
+  options: { value: T; label: string; sub?: string }[];
+}) {
+  return (
+    <div className="grid gap-2.5 sm:grid-cols-2">
+      {options.map((o) => {
+        const on = value.includes(o.value);
+        return (
+          <button
+            key={o.value}
+            type="button"
+            aria-pressed={on}
+            onClick={() => onChange(on ? value.filter((v) => v !== o.value) : [...value, o.value])}
+            className={`rounded-xl border px-4 py-3.5 text-left text-sm transition-colors ${
+              on ? "border-primary bg-primary/15 shadow-card" : "border-input hover:border-foreground/30"
+            }`}
+          >
+            <span className="font-medium">{o.label}</span>
+            {o.sub ? <span className="mt-0.5 block text-xs text-muted-foreground">{o.sub}</span> : null}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
