@@ -271,7 +271,27 @@ export function calculateAffordability(a: Answers) {
   const stability = a.incomeStability ? INCOME_STABILITY_ADJUSTMENTS[a.incomeStability] : null;
   if (stability && stability.haircut > 0) haircuts.push({ label: stability.note, pct: stability.haircut });
   if (a.recentBounce === "yes_3m")
-    haircuts.push({ label: "a missed EMI in the last 3 months", pct: SAFETY_HAIRCUTS.recentBounce });
+    haircuts.push({
+      label: `a missed payment in the last ${RECENT_BOUNCE_RULES.recentMonths} months`,
+      pct: RECENT_BOUNCE_RULES.recentHaircut,
+    });
+  else if (a.recentBounce === "yes_older")
+    haircuts.push({
+      label: "a missed payment earlier in the last year",
+      pct: RECENT_BOUNCE_RULES.olderHaircut,
+    });
+  if (
+    (a.recentBounce === "yes_3m" || a.recentBounce === "yes_older") &&
+    a.bounceCount !== null &&
+    a.bounceCount > 1
+  )
+    haircuts.push({
+      label: `${a.bounceCount} missed payments in the last year`,
+      pct: Math.min(
+        RECENT_BOUNCE_RULES.maxAdditionalHaircut,
+        (a.bounceCount - 1) * RECENT_BOUNCE_RULES.perAdditionalMissHaircut,
+      ),
+    });
   const buffer = a.emergencySavings ? EMERGENCY_BUFFER_ADJUSTMENTS[a.emergencySavings] : null;
   if (buffer && buffer.haircut > 0) haircuts.push({ label: buffer.note, pct: buffer.haircut });
   if (hasExpensiveExistingDebt(a))
@@ -279,6 +299,17 @@ export function calculateAffordability(a: Answers) {
       label: `existing debt above ${HIGH_COST_DEBT_RATE_THRESHOLD}%`,
       pct: SAFETY_HAIRCUTS.highCostDebt,
     });
+  if (
+    a.hasCardDebt === true &&
+    a.cardDebtOutstanding !== null &&
+    cashIncome > 0 &&
+    a.cardDebtOutstanding > cashIncome * HIGH_COST_DEBT_RULES.heavyBalanceMonthsOfIncome
+  )
+    haircuts.push({
+      label: "a revolving card or app-loan balance above a month of income",
+      pct: SAFETY_HAIRCUTS.revolvingBalance,
+    });
+
   if ((a.activeLoans ?? 0) >= DEBT_LOAD.manyActiveLoans)
     haircuts.push({
       label: `${a.activeLoans} loans running at the same time`,
