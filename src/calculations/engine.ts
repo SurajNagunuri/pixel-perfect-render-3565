@@ -957,13 +957,20 @@ export function runAssessment(a: Answers): Assessment {
   );
 
   const secured = securedRoute
-    ? `You have unencumbered collateral worth about ₹${(a.collateralValue as number).toLocaleString("en-IN")}. Ask specifically about a secured product (loan against property / business loan against collateral) — it is usually several percentage points cheaper than the unsecured quote you'll be offered first, and we have already priced your range as a secured loan.`
+    ? `You have collateral worth about ₹${(a.collateralValue as number).toLocaleString("en-IN")}${a.collateralHasLoan === "yes" ? ", already carrying a loan, so only part of its value is free" : a.collateralHasLoan === "unknown" ? ", though you weren't sure whether it already carries a loan, so we stayed cautious" : " and free of any existing loan"}. Ask specifically about a secured product (loan against property / business loan against collateral) — it is usually several percentage points cheaper than the unsecured quote you'll be offered first, and we have already priced your range as a secured loan. Collateral raises what a lender may sanction; it does not raise what your household can repay each month.`
     : null;
 
   const foirNow =
     aff.incomeBasis.value > 0 ? (requestedEmi + (a.existingEmi ?? 0)) / aff.incomeBasis.value : 1;
 
+  /* Only tenures the borrower could actually be given, and the shortest one that fits. */
+  const tenureRows = tenureTable(requested, midRate, tenurePurpose).filter(
+    (row) => row.months <= tenureLimit.months,
+  );
+  const recommendedTenureMonths = tenureRows.find((row) => row.emi <= aff.safeEmi.value)?.months ?? null;
+
   const partial: Omit<Assessment, "reasons" | "nextSteps"> = {
+
     verdict,
     safeEmi: aff.safeEmi,
     lenderEmi: aff.lenderEmi,
