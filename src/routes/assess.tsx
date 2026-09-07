@@ -810,17 +810,72 @@ function StepBody({
     case "family":
       return (
         <QuestionShell
-          label="Who else depends on this income?"
-          hint="This changes how much of your income is genuinely free for an EMI."
+          label="Are you married or partnered?"
+          hint="We ask only because a second earner — and a second set of essentials — changes what is genuinely free for an EMI."
         >
           <ChoiceGroup
             columns={1}
             value={a.maritalStatus}
             onChange={(maritalStatus) => pick({ maritalStatus })}
             options={[
-              { value: "single", label: "I'm single", sub: "One income, one set of essentials" },
-              { value: "married", label: "I'm married", sub: "We'll ask about your spouse's income next" },
+              { value: "single", label: "No" },
+              { value: "married", label: "Yes", sub: "We'll ask about your spouse's income next" },
               { value: "prefer_not", label: "I'd rather not say" },
+            ]}
+          />
+          <Note>
+            Being married is neither a plus nor a minus here. We only count income that reliably reaches your
+            household, and costs you actually pay.
+          </Note>
+        </QuestionShell>
+      );
+
+    case "dependentsAny":
+      return (
+        <QuestionShell
+          label="Does anyone depend on this income besides you?"
+          hint="Anyone whose essentials you cover, whether or not they live with you."
+        >
+          <ChoiceGroup
+            columns={1}
+            value={a.hasDependents}
+            onChange={(hasDependents) =>
+              pick({
+                hasDependents,
+                dependentTypes: hasDependents === "yes" ? a.dependentTypes : null,
+                numberOfDependents: hasDependents === "yes" ? a.numberOfDependents : null,
+                childrenCount: hasDependents === "yes" ? a.childrenCount : null,
+              })
+            }
+            options={[
+              { value: "yes", label: "Yes" },
+              { value: "no", label: "No, just me" },
+              { value: "unknown", label: "I'd rather not say" },
+            ]}
+          />
+        </QuestionShell>
+      );
+
+    case "dependentsWho":
+      return (
+        <QuestionShell
+          label="Who depends on you?"
+          hint="Pick everyone that applies. We never assume this from your marital status."
+        >
+          <MultiChoice
+            value={a.dependentTypes ?? []}
+            onChange={(dependentTypes) =>
+              setAnswers({
+                dependentTypes,
+                childrenCount: dependentTypes.includes("children") ? a.childrenCount : null,
+              })
+            }
+            options={[
+              { value: "children", label: "Children" },
+              { value: "parents", label: "Parents" },
+              { value: "siblings", label: "Siblings" },
+              { value: "other_family", label: "Spouse or partner not earning" },
+              { value: "other", label: "Someone else" },
             ]}
           />
         </QuestionShell>
@@ -829,15 +884,14 @@ function StepBody({
     case "dependents":
       return (
         <QuestionShell
-          label="How many people depend on you financially?"
-          hint="Parents, siblings, anyone whose essentials you cover. Don't count yourself."
+          label="How many people in total depend on you?"
+          hint="Don't count yourself. This tells us how thin the same income is spread."
         >
           <ChoiceGroup
-            columns={3}
+            columns={4}
             value={a.numberOfDependents}
             onChange={(numberOfDependents) => pick({ numberOfDependents })}
             options={[
-              { value: "0", label: "None" },
               { value: "1", label: "1" },
               { value: "2", label: "2" },
               { value: "3", label: "3" },
@@ -851,42 +905,23 @@ function StepBody({
       return (
         <QuestionShell label="How many children do you support?" hint="School-going or younger.">
           <ChoiceGroup
-            columns={4}
+            columns={3}
             value={a.childrenCount}
             onChange={(childrenCount) => pick({ childrenCount })}
             options={[
-              { value: "0", label: "None" },
               { value: "1", label: "1" },
               { value: "2", label: "2" },
               { value: "3plus", label: "3+" },
             ]}
           />
-        </QuestionShell>
-      );
-
-    case "childrenSpend":
-      return (
-        <QuestionShell
-          label="Roughly what do your children cost each month?"
-          hint="School fees spread over the year, tuition, transport, clothes, medical. A rough figure is fine."
-        >
-          <MoneyInput
-            autoFocus
-            value={a.childrenMonthlyExpenses}
-            onChange={(childrenMonthlyExpenses) => setAnswers({ childrenMonthlyExpenses })}
-            placeholder="12,000"
-            suffix="/month"
-            quickAdd={[5000, 12000, 25000]}
-          />
-          <SkipButton onClick={() => setAnswers({ childrenMonthlyExpenses: null })}>
-            I don't know
-          </SkipButton>
           <Note>
-            We count this as a real household cost, not a penalty for having children. It lowers the EMI we
-            think is comfortable, and nothing else.
+            Children are never a penalty here. What they actually cost shows up in your household expenses on
+            the next screens, and nowhere else.
           </Note>
         </QuestionShell>
       );
+
+
 
     case "spouse":
       return (
