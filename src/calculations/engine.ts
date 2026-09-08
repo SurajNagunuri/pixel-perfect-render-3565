@@ -1104,7 +1104,8 @@ export function upfrontCharges(a: Answers, amount: number) {
     other,
     quoted,
     total: fee + other,
-    netDisbursed: Math.max(1, amount - fee - other),
+    /** No amount asked for means nothing is disbursed — never a token ₹1. */
+    netDisbursed: amount > 0 ? Math.max(1, amount - fee - other) : 0,
     reason: quoted
       ? `Your quoted processing fee of ₹${Math.round(fee).toLocaleString("en-IN")} plus about ${(FEE_ASSUMPTIONS.otherUpfrontChargesPct * 100).toFixed(1)}% of other upfront charges never reaches your account, so the true annualised cost is higher than the headline rate.`
       : `No quote yet, so we assume a ${(FEE_ASSUMPTIONS.assumedProcessingFeePct * 100).toFixed(1)}% processing fee (₹${Math.round(fee).toLocaleString("en-IN")}) plus ${(FEE_ASSUMPTIONS.otherUpfrontChargesPct * 100).toFixed(1)}% of other upfront charges. Those come off the disbursal, so the true annualised cost is higher than the headline rate.`,
