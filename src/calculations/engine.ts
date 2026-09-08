@@ -1113,7 +1113,8 @@ export function upfrontCharges(a: Answers, amount: number) {
 
 /* ---------- top-level ---------- */
 
-export function runAssessment(a: Answers): Assessment {
+export function runAssessment(input: Answers): Assessment {
+  const a = normalizeAnswers(input);
   const purpose = a.purpose ?? "other";
   const aff = calculateAffordability(a);
   const rate = calculateFairRate(a);
