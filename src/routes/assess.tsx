@@ -708,6 +708,30 @@ function StepBody({
         </QuestionShell>
       );
 
+    case "collateralKind":
+      return (
+        <QuestionShell
+          label="What kind of asset is it?"
+          hint="This changes the product, not just the price: property points to a loan against property, gold to a gold loan."
+        >
+          <ChoiceGroup
+            columns={1}
+            value={a.collateralType}
+            onChange={(collateralType) => pick({ collateralType })}
+            options={[
+              { value: "property", label: "Property — land, a house or a shop" },
+              { value: "gold", label: "Gold" },
+              { value: "other", label: "Something else" },
+              { value: "unsure", label: "I'm not sure it can be pledged" },
+            ]}
+          />
+          <Note>
+            If we can't tell what the asset is, we keep the honest unsecured pricing rather than quoting you a
+            cheaper loan you may not be offered.
+          </Note>
+        </QuestionShell>
+      );
+
     case "collateralValue":
       return (
         <QuestionShell
@@ -1072,6 +1096,17 @@ function StepBody({
               { value: "unsure", label: "I'm not sure" },
             ]}
           />
+          <Field label="Or tell us the exact amount that reaches the household" optional>
+            <MoneyInput
+              value={a.spouseReliableAmount}
+              onChange={(spouseReliableAmount) => setAnswers({ spouseReliableAmount })}
+              placeholder="10,000"
+              suffix="/month"
+            />
+          </Field>
+          <Note>
+            If you give a figure we use it instead of the bucket above. We never count a spouse's whole income.
+          </Note>
         </QuestionShell>
       );
 
@@ -1134,6 +1169,29 @@ function StepBody({
             suffix="/month"
             quickAdd={[3000, 8000, 20000]}
           />
+        </QuestionShell>
+      );
+
+    case "cardDebtInEmi":
+      return (
+        <QuestionShell
+          label="Is that payment already inside the EMI figure you gave us?"
+          hint="App loans are often reported as EMIs. We want to count that money once, not twice."
+        >
+          <ChoiceGroup
+            columns={1}
+            value={a.cardDebtInExistingEmi}
+            onChange={(cardDebtInExistingEmi) => pick({ cardDebtInExistingEmi })}
+            options={[
+              { value: "yes", label: "Yes, it's included in my existing EMIs" },
+              { value: "no", label: "No, it's on top of those EMIs" },
+              { value: "unknown", label: "I'm not sure" },
+            ]}
+          />
+          <Note>
+            If it's already counted, we ignore it here and keep your existing-EMI figure as the single record of
+            that money.
+          </Note>
         </QuestionShell>
       );
 
