@@ -147,8 +147,6 @@ export const sampleBorrowers: SampleBorrower[] = [
       monthlyIncome: 80000,
       weakMonthIncome: 40000,
 
-
-
       incomeStability: "varies_some",
       existingEmi: 0,
       expenses: {

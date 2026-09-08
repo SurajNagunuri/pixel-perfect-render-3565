@@ -5,7 +5,7 @@ A borrowing decision assistant for Indian borrowers, built on one principle:
 > **What a lender may give you is not the same as what you should take.**
 
 Most tools calculate an EMI or predict an approval. Borrower Copilot answers the question a borrower
-actually has — *should I take this loan, and on what terms* — and shows the gap between lender-side
+actually has — _should I take this loan, and on what terms_ — and shows the gap between lender-side
 capacity and household-safe capacity for the same person on the same day.
 
 ## What it produces
@@ -23,13 +23,13 @@ For every borrower:
 
 ## Pages
 
-| Route | Purpose |
-| --- | --- |
-| `/` | The premise, the lender-vs-safe contrast, and three sample borrowers |
-| `/assess` | Adaptive questionnaire — asks only what the answers so far make relevant |
-| `/results` | Full assessment; every figure has a "Why?" explanation |
-| `/card` | One-page printable negotiation card (Print / Save as PDF) |
-| `/rules` | Every assumption, tagged market estimate / lending convention / my judgement |
+| Route      | Purpose                                                                      |
+| ---------- | ---------------------------------------------------------------------------- |
+| `/`        | The premise, the lender-vs-safe contrast, and three sample borrowers         |
+| `/assess`  | Adaptive questionnaire — asks only what the answers so far make relevant     |
+| `/results` | Full assessment; every figure has a "Why?" explanation                       |
+| `/card`    | One-page printable negotiation card (Print / Save as PDF)                    |
+| `/rules`   | Every assumption, tagged market estimate / lending convention / my judgement |
 
 ## Design commitments
 

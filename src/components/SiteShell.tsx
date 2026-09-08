@@ -11,7 +11,9 @@ export function SiteHeader() {
           <span className="grid size-8 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground">
             <Compass className="size-4" />
           </span>
-          <span className="truncate font-display text-lg leading-none sm:text-xl">Borrower Copilot</span>
+          <span className="truncate font-display text-lg leading-none sm:text-xl">
+            Borrower Copilot
+          </span>
         </Link>
         <nav className="flex items-center gap-5 text-sm text-muted-foreground">
           <Link to="/rules" className="hidden transition-colors hover:text-foreground sm:block">
@@ -36,8 +38,8 @@ export function SiteFooter() {
       <div className="mx-auto max-w-6xl px-5 py-9 text-sm text-muted-foreground">
         <p className="font-display text-lg text-foreground">Borrower Copilot</p>
         <p className="mt-2 max-w-2xl leading-relaxed">
-          Educational self-assessment, not a loan approval or financial guarantee. Every number is an
-          estimate based on what you tell us, and your answers stay in this browser tab.
+          Educational self-assessment, not a loan approval or financial guarantee. Every number is
+          an estimate based on what you tell us, and your answers stay in this browser tab.
         </p>
         <p className="mt-4">
           <Link to="/rules" className="underline underline-offset-4 hover:text-foreground">
@@ -70,7 +72,9 @@ export function Why({ children, question }: { question: string; children: ReactN
           <span className="text-muted-foreground">{question}</span>
         </span>
       </summary>
-      <div className="px-4 pb-4 pl-11 text-sm leading-relaxed text-muted-foreground">{children}</div>
+      <div className="px-4 pb-4 pl-11 text-sm leading-relaxed text-muted-foreground">
+        {children}
+      </div>
     </details>
   );
 }
@@ -81,7 +85,13 @@ const CONFIDENCE_MEANING: Record<string, string> = {
   Low: "Key information is unknown, so this is a wide estimate — not a firm figure.",
 };
 
-export function ConfidencePill({ level, label }: { level: "High" | "Medium" | "Low"; label?: string }) {
+export function ConfidencePill({
+  level,
+  label,
+}: {
+  level: "High" | "Medium" | "Low";
+  label?: string;
+}) {
   const tone =
     level === "High"
       ? "bg-positive-soft text-positive"
@@ -122,7 +132,9 @@ export function ResultSection({
   return (
     <section className="scroll-mt-20">
       <div className="flex items-baseline gap-3">
-        <span className="num text-sm text-muted-foreground/70">{String(step).padStart(2, "0")}</span>
+        <span className="num text-sm text-muted-foreground/70">
+          {String(step).padStart(2, "0")}
+        </span>
         <div className="min-w-0">
           <h2 className="font-display text-[1.45rem] leading-tight sm:text-[1.7rem]">{title}</h2>
           {question ? <p className="mt-1 text-sm text-muted-foreground">{question}</p> : null}
@@ -164,15 +176,22 @@ export function CompareBar({
   return (
     <div>
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
-        <p className={`min-w-0 truncate text-sm ${emphasis ? "font-medium text-foreground" : "text-muted-foreground"}`}>
+        <p
+          className={`min-w-0 truncate text-sm ${emphasis ? "font-medium text-foreground" : "text-muted-foreground"}`}
+        >
           {label}
         </p>
-        <p className={`num shrink-0 ${emphasis ? "font-display text-xl" : "text-sm text-muted-foreground"}`}>
+        <p
+          className={`num shrink-0 ${emphasis ? "font-display text-xl" : "text-sm text-muted-foreground"}`}
+        >
           {caption}
         </p>
       </div>
       <div className="mt-1.5 h-2.5 w-full overflow-hidden rounded-full bg-muted">
-        <div className={`h-full rounded-full ${fill} transition-all duration-500`} style={{ width: `${pct}%` }} />
+        <div
+          className={`h-full rounded-full ${fill} transition-all duration-500`}
+          style={{ width: `${pct}%` }}
+        />
       </div>
     </div>
   );

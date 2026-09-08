@@ -117,17 +117,32 @@ describe("collateral routes to a product, and never raises the safe EMI", () => 
   };
   it("property routes to a loan against property", () => {
     expect(
-      securedProductPurpose({ ...base, hasCollateral: true, collateralType: "property", collateralValue: 4500000 }),
+      securedProductPurpose({
+        ...base,
+        hasCollateral: true,
+        collateralType: "property",
+        collateralValue: 4500000,
+      }),
     ).toBe("against_property");
   });
   it("gold routes to a gold loan", () => {
     expect(
-      securedProductPurpose({ ...base, hasCollateral: true, collateralType: "gold", collateralValue: 800000 }),
+      securedProductPurpose({
+        ...base,
+        hasCollateral: true,
+        collateralType: "gold",
+        collateralValue: 800000,
+      }),
     ).toBe("gold");
   });
   it("an unclear asset routes nowhere", () => {
     expect(
-      securedProductPurpose({ ...base, hasCollateral: true, collateralType: "unsure", collateralValue: 800000 }),
+      securedProductPurpose({
+        ...base,
+        hasCollateral: true,
+        collateralType: "unsure",
+        collateralValue: 800000,
+      }),
     ).toBeNull();
   });
   it("collateral does not increase the safe EMI", () => {
@@ -148,7 +163,9 @@ describe("safe EMI is the lower of the two capacities", () => {
     for (const id of ["priya", "ravi", "anita"] as const) {
       const aff = calculateAffordability(sample(id));
       expect(aff.safeEmi.value).toBeLessThanOrEqual(aff.foirSafeEmi + 1);
-      expect(aff.safeEmi.value).toBeLessThanOrEqual(Math.max(0, aff.cashFlow.emiCapFromCashFlow) + 1);
+      expect(aff.safeEmi.value).toBeLessThanOrEqual(
+        Math.max(0, aff.cashFlow.emiCapFromCashFlow) + 1,
+      );
     }
   });
   it("a lender's ceiling is never below the borrower-safe ceiling", () => {

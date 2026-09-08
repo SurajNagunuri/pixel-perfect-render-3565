@@ -44,8 +44,8 @@ function Rules() {
         <p className="eyebrow">Rules &amp; assumptions</p>
         <h1 className="mt-3 text-4xl sm:text-5xl">How we calculate this</h1>
         <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
-          Every number in this tool comes from your answers plus the rules on this page. Nothing is a
-          black box, and nothing here is a regulatory requirement we invented.
+          Every number in this tool comes from your answers plus the rules on this page. Nothing is
+          a black box, and nothing here is a regulatory requirement we invented.
         </p>
 
         <Section
@@ -77,8 +77,8 @@ function Rules() {
           </table>
           <p className="mt-3 text-sm font-medium">Prototype rule, not a lender approval policy.</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            These are not RBI-mandated limits. Real lenders vary by product, city, profile and internal
-            policy.
+            These are not RBI-mandated limits. Real lenders vary by product, city, profile and
+            internal policy.
           </p>
         </Section>
 
@@ -95,19 +95,22 @@ function Rules() {
         >
           <ul className="space-y-1.5 text-sm text-muted-foreground">
             <li>
-              Insurance is protection, never debt: it reduces free cash but never changes the rate band.
+              Insurance is protection, never debt: it reduces free cash but never changes the rate
+              band.
             </li>
             <li>
-              A spouse's income counts only to the extent it reliably reaches the household — regular counts
-              in full, occasional at 60%, and only the share you say reaches household expenses.
+              A spouse's income counts only to the extent it reliably reaches the household —
+              regular counts in full, occasional at 60%, and only the share you say reaches
+              household expenses.
             </li>
             <li>
-              Children's costs and the education expense line overlap, so we count the larger of the two
-              rather than adding both.
+              Children's costs and the education expense line overlap, so we count the larger of the
+              two rather than adding both.
             </li>
             <li>
-              Blank expense categories are never treated as zero: we hold back a small allowance (about 3% of
-              income per missing category, 2% when insurance is unknown) and widen the range instead.
+              Blank expense categories are never treated as zero: we hold back a small allowance
+              (about 3% of income per missing category, 2% when insurance is unknown) and widen the
+              range instead.
             </li>
           </ul>
         </Section>
@@ -118,8 +121,12 @@ function Rules() {
           body="After applying the safer ceiling, we reduce the remaining headroom for fragility signals, and cap the new EMI at 70% of household cash left after expenses and existing EMIs."
         >
           <ul className="space-y-1.5 text-sm text-muted-foreground">
-            <li>Over 25% variable income: −{Math.round(SAFETY_HAIRCUTS.variableIncomeHigh * 100)}%</li>
-            <li>Income varies significantly: −{Math.round(SAFETY_HAIRCUTS.incomeVariesALot * 100)}%</li>
+            <li>
+              Over 25% variable income: −{Math.round(SAFETY_HAIRCUTS.variableIncomeHigh * 100)}%
+            </li>
+            <li>
+              Income varies significantly: −{Math.round(SAFETY_HAIRCUTS.incomeVariesALot * 100)}%
+            </li>
             <li>Missed EMI within 3 months: −{Math.round(SAFETY_HAIRCUTS.recentBounce * 100)}%</li>
             <li>Under 1 month of savings: −{Math.round(SAFETY_HAIRCUTS.lowSavings * 100)}%</li>
             <li>Existing debt above 24%: −{Math.round(SAFETY_HAIRCUTS.highCostDebt * 100)}%</li>
@@ -143,7 +150,10 @@ function Rules() {
         >
           <ul className="grid gap-1.5 text-sm text-muted-foreground sm:grid-cols-2">
             {Object.values(RATE_BANDS).map((b) => (
-              <li key={b.label} className="flex justify-between gap-3 border-b border-border/60 py-1">
+              <li
+                key={b.label}
+                className="flex justify-between gap-3 border-b border-border/60 py-1"
+              >
                 <span>{b.label}</span>
                 <span className="num text-foreground">
                   {b.low}%–{b.high}%
@@ -155,7 +165,9 @@ function Rules() {
               <span className="num text-foreground">18%–30%+</span>
             </li>
           </ul>
-          <p className="mt-3 text-sm font-medium">Indicative benchmark — not an offer or guaranteed rate.</p>
+          <p className="mt-3 text-sm font-medium">
+            Indicative benchmark — not an offer or guaranteed rate.
+          </p>
         </Section>
 
         <Section

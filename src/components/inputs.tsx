@@ -16,8 +16,12 @@ export function QuestionShell({
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="font-display text-[1.6rem] leading-[1.2] tracking-tight sm:text-[2.1rem]">{label}</h1>
-        {hint ? <p className="mt-2.5 text-[0.925rem] leading-relaxed text-muted-foreground">{hint}</p> : null}
+        <h1 className="font-display text-[1.6rem] leading-[1.2] tracking-tight sm:text-[2.1rem]">
+          {label}
+        </h1>
+        {hint ? (
+          <p className="mt-2.5 text-[0.925rem] leading-relaxed text-muted-foreground">{hint}</p>
+        ) : null}
       </div>
       {children}
       {error ? <FieldError>{error}</FieldError> : null}
@@ -72,7 +76,9 @@ export function ChoiceGroup<T extends string>({
           >
             <span className="min-w-0">
               <span className="block text-[0.95rem] font-medium leading-snug">{o.label}</span>
-              {o.sub ? <span className="mt-0.5 block text-xs text-muted-foreground">{o.sub}</span> : null}
+              {o.sub ? (
+                <span className="mt-0.5 block text-xs text-muted-foreground">{o.sub}</span>
+              ) : null}
             </span>
             <span
               className={`grid size-5 shrink-0 place-items-center rounded-full border ${
@@ -117,7 +123,9 @@ export function MoneyInput({
           onChange={(e) => onChange(parseINRInput(e.target.value))}
           className="num w-full min-w-0 bg-transparent py-4 text-2xl outline-none placeholder:text-lg placeholder:text-muted-foreground/70"
         />
-        {suffix ? <span className="ml-2 shrink-0 text-sm text-muted-foreground">{suffix}</span> : null}
+        {suffix ? (
+          <span className="ml-2 shrink-0 text-sm text-muted-foreground">{suffix}</span>
+        ) : null}
       </div>
       <div className="flex min-h-6 flex-wrap items-center gap-2">
         {words ? (
@@ -168,7 +176,9 @@ export function PlainInput({
         onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
         className="num w-full min-w-0 bg-transparent py-4 text-2xl outline-none placeholder:text-lg placeholder:text-muted-foreground/70"
       />
-      {suffix ? <span className="ml-2 shrink-0 text-sm text-muted-foreground">{suffix}</span> : null}
+      {suffix ? (
+        <span className="ml-2 shrink-0 text-sm text-muted-foreground">{suffix}</span>
+      ) : null}
     </div>
   );
 }

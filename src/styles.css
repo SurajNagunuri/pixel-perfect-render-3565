@@ -158,7 +158,10 @@
     font-family: var(--font-sans);
     font-size: 17px;
     line-height: 1.47;
-    font-feature-settings: "kern" 1, "liga" 1, "cv11" 1;
+    font-feature-settings:
+      "kern" 1,
+      "liga" 1,
+      "cv11" 1;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -206,11 +209,7 @@
     position: absolute;
     inset: -20% -10% auto -10%;
     height: 70%;
-    background: radial-gradient(
-      60% 100% at 50% 0%,
-      oklch(0.635 0.178 254 / 0.22),
-      transparent 70%
-    );
+    background: radial-gradient(60% 100% at 50% 0%, oklch(0.635 0.178 254 / 0.22), transparent 70%);
     pointer-events: none;
     z-index: 0;
   }

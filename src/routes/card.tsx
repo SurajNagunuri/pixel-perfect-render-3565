@@ -46,7 +46,9 @@ function CardPage() {
       <Page>
         <div className="mx-auto max-w-xl px-5 py-24 text-center">
           <h1 className="text-3xl">Nothing to print yet</h1>
-          <p className="mt-3 text-muted-foreground">Answer a few questions first and we'll build your card.</p>
+          <p className="mt-3 text-muted-foreground">
+            Answer a few questions first and we'll build your card.
+          </p>
           <Link
             to="/assess"
             className="mt-7 inline-flex items-center gap-2 rounded-md bg-primary px-5 py-3 text-sm font-medium text-primary-foreground"
@@ -59,7 +61,11 @@ function CardPage() {
   }
 
   const verdictLabel =
-    r.verdict.value === "BORROW" ? "BORROW" : r.verdict.value === "BORROW_LESS" ? "BORROW LESS" : "DON'T BORROW";
+    r.verdict.value === "BORROW"
+      ? "BORROW"
+      : r.verdict.value === "BORROW_LESS"
+        ? "BORROW LESS"
+        : "DON'T BORROW";
   const verdictLine =
     r.verdict.value === "BORROW"
       ? "This borrowing fits my income, within the limits below."
@@ -88,13 +94,16 @@ function CardPage() {
           >
             <RotateCcw className="size-4" /> Start over
           </button>
-          <Link to="/results" className="ml-auto text-sm text-muted-foreground underline underline-offset-4">
+          <Link
+            to="/results"
+            className="ml-auto text-sm text-muted-foreground underline underline-offset-4"
+          >
             Back to full result
           </Link>
         </div>
         <p className="no-print mt-2 text-xs text-muted-foreground">
-          In the print dialog choose “Save as PDF” — the card is laid out to fit a single page. On a phone,
-          screenshot the card below.
+          In the print dialog choose “Save as PDF” — the card is laid out to fit a single page. On a
+          phone, screenshot the card below.
         </p>
 
         <article className="print-card mt-5 border border-border bg-card shadow-card">
@@ -110,7 +119,11 @@ function CardPage() {
               <p className="num shrink-0 pt-1 text-right text-[0.7rem] leading-tight text-muted-foreground">
                 Prepared
                 <br />
-                {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                {new Date().toLocaleDateString("en-IN", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                })}
               </p>
             </div>
             <p className="mt-2 text-sm">Take this with you when you talk to a lender.</p>
@@ -149,7 +162,11 @@ function CardPage() {
                 label="Estimated APR (rate + charges)"
                 value={`${formatPct(r.apr.value.low)} – ${formatPct(r.apr.value.high)}`}
               />
-              <Row label="Maximum EMI I will accept" value={`${formatINR(r.safeEmi.value)} / month`} strong />
+              <Row
+                label="Maximum EMI I will accept"
+                value={`${formatINR(r.safeEmi.value)} / month`}
+                strong
+              />
               <Row label="Assessed over" value={`${r.assumedTenureMonths} months`} />
             </dl>
           </section>
@@ -166,14 +183,16 @@ function CardPage() {
                 label="Household expenses, insurance and existing commitments"
                 value={`${formatINR(
                   r.cashFlow.householdExpenses +
-
                     r.cashFlow.insurance +
                     r.cashFlow.existingEmi +
                     r.cashFlow.cardDebt +
                     r.cashFlow.otherCommitments,
                 )} / month`}
               />
-              <Row label="Left over each month" value={`${formatINR(r.cashFlow.freeCashFlow)} / month`} />
+              <Row
+                label="Left over each month"
+                value={`${formatINR(r.cashFlow.freeCashFlow)} / month`}
+              />
             </dl>
             <div className="mt-4 border border-caution bg-caution-soft px-4 py-3">
               <p className="eyebrow">Why this EMI ceiling?</p>
@@ -190,11 +209,14 @@ function CardPage() {
 
           {/* Stress case */}
           <section className="border-b border-border px-6 py-5 sm:px-9">
-            <p className="eyebrow">Stress case — {r.stress.kind === "income" ? "if income drops" : "if the rate rises"}</p>
+            <p className="eyebrow">
+              Stress case — {r.stress.kind === "income" ? "if income drops" : "if the rate rises"}
+            </p>
             <div className="mt-2 grid gap-x-9 gap-y-1 sm:grid-cols-[auto_auto_minmax(0,1fr)] sm:items-baseline">
               <p className="num font-display text-xl">{formatINR(r.stress.emi)} / month</p>
               <p className="num text-sm text-muted-foreground">
-                Burden {Math.round(r.stress.foir * 100)}% · safer target {Math.round(r.stress.safeFoirTarget * 100)}%
+                Burden {Math.round(r.stress.foir * 100)}% · safer target{" "}
+                {Math.round(r.stress.safeFoirTarget * 100)}%
               </p>
             </div>
             <p className="mt-2 text-sm leading-relaxed">{r.stress.note}</p>
@@ -218,7 +240,10 @@ function CardPage() {
             <p className="eyebrow">Ask the lender — five questions</p>
             <ol className="mt-2 divide-y divide-border/70 border-y border-border/70">
               {ASK_LENDER.map((q, i) => (
-                <li key={q} className="grid grid-cols-[1.25rem_minmax(0,1fr)] gap-1 py-2 text-sm leading-snug">
+                <li
+                  key={q}
+                  className="grid grid-cols-[1.25rem_minmax(0,1fr)] gap-1 py-2 text-sm leading-snug"
+                >
                   <span className="num text-muted-foreground">{i + 1}.</span>
                   <span>{q}</span>
                 </li>
@@ -230,8 +255,9 @@ function CardPage() {
             </p>
 
             <footer className="mt-4 border-t border-border pt-3 text-[0.68rem] leading-relaxed text-muted-foreground">
-              Borrower Copilot · Educational self-assessment, not a loan approval or financial guarantee. Figures
-              are estimates from self-reported information using prototype affordability rules — not lender policy.
+              Borrower Copilot · Educational self-assessment, not a loan approval or financial
+              guarantee. Figures are estimates from self-reported information using prototype
+              affordability rules — not lender policy.
             </footer>
           </section>
         </article>
@@ -244,7 +270,9 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 border-b border-dotted border-border py-2 last:border-b-0">
       <dt className="min-w-0 text-sm text-muted-foreground">{label}</dt>
-      <dd className={`num shrink-0 font-display leading-none ${strong ? "text-[1.35rem]" : "text-[1.1rem]"}`}>
+      <dd
+        className={`num shrink-0 font-display leading-none ${strong ? "text-[1.35rem]" : "text-[1.1rem]"}`}
+      >
         {value}
       </dd>
     </div>

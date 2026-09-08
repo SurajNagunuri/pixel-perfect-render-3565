@@ -2,7 +2,13 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Info, Lock } from "lucide-react";
 import { Page } from "@/components/SiteShell";
-import { ChoiceGroup, MoneyInput, PlainInput, QuestionShell, SkipButton } from "@/components/inputs";
+import {
+  ChoiceGroup,
+  MoneyInput,
+  PlainInput,
+  QuestionShell,
+  SkipButton,
+} from "@/components/inputs";
 import { setAnswers, useAnswers } from "@/lib/store";
 import { formatINR } from "@/lib/inr";
 import { CREDIT_SCORE_RANGE, EXPENSE_LABELS, HIGH_COST_DEBT_RATE_THRESHOLD } from "@/rules/rules";
@@ -21,7 +27,8 @@ export const Route = createFileRoute("/assess")({
       { property: "og:title", content: "Your borrowing position — Borrower Copilot" },
       {
         property: "og:description",
-        content: "A short adaptive questionnaire that produces a borrower-side negotiation position.",
+        content:
+          "A short adaptive questionnaire that produces a borrower-side negotiation position.",
       },
     ],
   }),
@@ -43,7 +50,6 @@ type StepId =
   | "collateralKind"
   | "collateralValue"
   | "collateralLoan"
-
   | "highCostDebt"
   | "bounce"
   | "bounceCount"
@@ -63,7 +69,6 @@ type StepId =
   | "cardDebtAmount"
   | "cardDebtInEmi"
   | "cardDebtBalance"
-
   | "expenses"
   | "insurance"
   | "insuranceDetail"
@@ -178,8 +183,10 @@ function visibleSteps(a: Answers): StepId[] {
   const steps: StepId[] = ["purpose", "amount", "incomeType", "income", "stability"];
 
   if (hasVariableIncome(a)) steps.push("weakMonth");
-  if (a.incomeType === "salaried" || a.incomeType === "mixed") steps.push("employmentTenure", "variablePct");
-  if (a.incomeType === "self_employed" || a.incomeType === "mixed") steps.push("businessVintage", "documented");
+  if (a.incomeType === "salaried" || a.incomeType === "mixed")
+    steps.push("employmentTenure", "variablePct");
+  if (a.incomeType === "self_employed" || a.incomeType === "mixed")
+    steps.push("businessVintage", "documented");
   steps.push("collateral");
   if (a.hasCollateral === true) steps.push("collateralKind", "collateralValue", "collateralLoan");
 
@@ -222,7 +229,6 @@ function visibleSteps(a: Answers): StepId[] {
   if (a.hasOffer === true) steps.push("offerDetail");
   return steps;
 }
-
 
 function Assess() {
   const a = useAnswers();
@@ -291,7 +297,10 @@ function Assess() {
           </p>
         </div>
         <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-muted sm:hidden">
-          <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }} />
+          <div
+            className="h-full rounded-full bg-primary transition-all duration-300"
+            style={{ width: `${progress}%` }}
+          />
         </div>
 
         <div className="mt-8 sm:mt-10">
@@ -464,15 +473,7 @@ function Note({ children }: { children: React.ReactNode }) {
   );
 }
 
-function StepBody({
-  step,
-  a,
-  onAnswered,
-}: {
-  step: StepId;
-  a: Answers;
-  onAnswered: () => void;
-}) {
+function StepBody({ step, a, onAnswered }: { step: StepId; a: Answers; onAnswered: () => void }) {
   const pick = <K extends keyof Answers>(patch: Pick<Answers, K>) => {
     setAnswers(patch);
     onAnswered();
@@ -529,8 +530,16 @@ function StepBody({
             onChange={(incomeType) => pick({ incomeType })}
             options={[
               { value: "salaried", label: "Salaried", sub: "Monthly pay from an employer" },
-              { value: "self_employed", label: "Self-employed", sub: "Business or professional income" },
-              { value: "informal", label: "Informal / gig / cash", sub: "Daily or irregular earnings" },
+              {
+                value: "self_employed",
+                label: "Self-employed",
+                sub: "Business or professional income",
+              },
+              {
+                value: "informal",
+                label: "Informal / gig / cash",
+                sub: "Daily or irregular earnings",
+              },
               { value: "mixed", label: "A mix of these" },
             ]}
           />
@@ -591,8 +600,8 @@ function StepBody({
           />
           {a.weakMonthIncome && a.monthlyIncome && a.weakMonthIncome < a.monthlyIncome ? (
             <Note>
-              We'll assess a blend of {formatINR(a.weakMonthIncome)} and {formatINR(a.monthlyIncome)} rather
-              than your better month.
+              We'll assess a blend of {formatINR(a.weakMonthIncome)} and{" "}
+              {formatINR(a.monthlyIncome)} rather than your better month.
             </Note>
           ) : (
             <SkipButton onClick={() => setAnswers({ weakMonthIncome: null })}>
@@ -602,11 +611,12 @@ function StepBody({
         </QuestionShell>
       );
 
-
-
     case "employmentTenure":
       return (
-        <QuestionShell label="How long have you been working?" hint="Longer tenure earns a better starting rate.">
+        <QuestionShell
+          label="How long have you been working?"
+          hint="Longer tenure earns a better starting rate."
+        >
           <ChoiceGroup
             columns={2}
             value={a.employmentTenure}
@@ -644,7 +654,10 @@ function StepBody({
 
     case "businessVintage":
       return (
-        <QuestionShell label="How long has your business been running?" hint="Vintage is what lenders trust most.">
+        <QuestionShell
+          label="How long has your business been running?"
+          hint="Vintage is what lenders trust most."
+        >
           <ChoiceGroup
             columns={2}
             value={a.businessVintage}
@@ -726,8 +739,8 @@ function StepBody({
             ]}
           />
           <Note>
-            If we can't tell what the asset is, we keep the honest unsecured pricing rather than quoting you a
-            cheaper loan you may not be offered.
+            If we can't tell what the asset is, we keep the honest unsecured pricing rather than
+            quoting you a cheaper loan you may not be offered.
           </Note>
         </QuestionShell>
       );
@@ -768,13 +781,11 @@ function StepBody({
             ]}
           />
           <Note>
-            Collateral raises what a lender may sanction. It never raises what your household can afford to
-            repay each month — those stay two separate numbers.
+            Collateral raises what a lender may sanction. It never raises what your household can
+            afford to repay each month — those stay two separate numbers.
           </Note>
         </QuestionShell>
       );
-
-
 
     case "highCostDebt":
       return (
@@ -805,7 +816,8 @@ function StepBody({
             onChange={(recentBounce) =>
               pick({
                 recentBounce,
-                bounceCount: recentBounce === "no" || recentBounce === "unknown" ? null : a.bounceCount,
+                bounceCount:
+                  recentBounce === "no" || recentBounce === "unknown" ? null : a.bounceCount,
               })
             }
             options={[
@@ -831,10 +843,11 @@ function StepBody({
             placeholder="1"
             suffix="payments"
           />
-          <SkipButton onClick={() => setAnswers({ bounceCount: null })}>I don't remember</SkipButton>
+          <SkipButton onClick={() => setAnswers({ bounceCount: null })}>
+            I don't remember
+          </SkipButton>
         </QuestionShell>
       );
-
 
     case "existingEmi":
       return (
@@ -866,7 +879,10 @@ function StepBody({
 
     case "debtCount":
       return (
-        <QuestionShell label="How many loans are running?" hint="Several loans at once reads as stacked borrowing.">
+        <QuestionShell
+          label="How many loans are running?"
+          hint="Several loans at once reads as stacked borrowing."
+        >
           <PlainInput
             autoFocus
             value={a.activeLoans}
@@ -874,7 +890,9 @@ function StepBody({
             placeholder="2"
             suffix="loans"
           />
-          <SkipButton onClick={() => setAnswers({ activeLoans: null })}>I'd rather not say</SkipButton>
+          <SkipButton onClick={() => setAnswers({ activeLoans: null })}>
+            I'd rather not say
+          </SkipButton>
         </QuestionShell>
       );
 
@@ -889,7 +907,9 @@ function StepBody({
             onChange={(outstandingPrincipal) => setAnswers({ outstandingPrincipal })}
             placeholder="3,00,000"
           />
-          <SkipButton onClick={() => setAnswers({ outstandingPrincipal: null })}>I don't know</SkipButton>
+          <SkipButton onClick={() => setAnswers({ outstandingPrincipal: null })}>
+            I don't know
+          </SkipButton>
         </QuestionShell>
       );
 
@@ -942,8 +962,8 @@ function StepBody({
             ]}
           />
           <Note>
-            Being married is neither a plus nor a minus here. We only count income that reliably reaches your
-            household, and costs you actually pay.
+            Being married is neither a plus nor a minus here. We only count income that reliably
+            reaches your household, and costs you actually pay.
           </Note>
         </QuestionShell>
       );
@@ -1033,13 +1053,11 @@ function StepBody({
             ]}
           />
           <Note>
-            Children are never a penalty here. What they actually cost shows up in your household expenses on
-            the next screens, and nowhere else.
+            Children are never a penalty here. What they actually cost shows up in your household
+            expenses on the next screens, and nowhere else.
           </Note>
         </QuestionShell>
       );
-
-
 
     case "spouse":
       return (
@@ -1075,7 +1093,9 @@ function StepBody({
             suffix="/month"
             quickAdd={[15000, 30000, 60000]}
           />
-          <SkipButton onClick={() => setAnswers({ spouseIncome: null })}>I'd rather not say</SkipButton>
+          <SkipButton onClick={() => setAnswers({ spouseIncome: null })}>
+            I'd rather not say
+          </SkipButton>
         </QuestionShell>
       );
 
@@ -1105,7 +1125,8 @@ function StepBody({
             />
           </Field>
           <Note>
-            If you give a figure we use it instead of the bucket above. We never count a spouse's whole income.
+            If you give a figure we use it instead of the bucket above. We never count a spouse's
+            whole income.
           </Note>
         </QuestionShell>
       );
@@ -1129,11 +1150,10 @@ function StepBody({
             ))}
           </div>
           <Note>
-            Include what your children and dependents cost inside these lines — school fees under education,
-            their food under food — so nothing is counted twice. Excludes the loan EMIs and insurance we ask
-            about separately.
+            Include what your children and dependents cost inside these lines — school fees under
+            education, their food under food — so nothing is counted twice. Excludes the loan EMIs
+            and insurance we ask about separately.
           </Note>
-
         </QuestionShell>
       );
 
@@ -1189,8 +1209,8 @@ function StepBody({
             ]}
           />
           <Note>
-            If it's already counted, we ignore it here and keep your existing-EMI figure as the single record of
-            that money.
+            If it's already counted, we ignore it here and keep your existing-EMI figure as the
+            single record of that money.
           </Note>
         </QuestionShell>
       );
@@ -1232,13 +1252,13 @@ function StepBody({
               />
             </Field>
           </div>
-          <SkipButton onClick={() => setAnswers({ cardDebtOutstanding: null, cardDebtRate: "unknown" })}>
+          <SkipButton
+            onClick={() => setAnswers({ cardDebtOutstanding: null, cardDebtRate: "unknown" })}
+          >
             I don't know the balance
           </SkipButton>
         </QuestionShell>
       );
-
-
 
     case "insurance":
       return (
@@ -1252,7 +1272,11 @@ function StepBody({
             onChange={(hasInsurance) => pick({ hasInsurance })}
             options={[
               { value: "yes", label: "Yes" },
-              { value: "no", label: "No cover at all", sub: "We'll flag this as a risk, not a rate factor" },
+              {
+                value: "no",
+                label: "No cover at all",
+                sub: "We'll flag this as a risk, not a rate factor",
+              },
               { value: "unknown", label: "I don't know" },
             ]}
           />
@@ -1353,7 +1377,13 @@ function StepBody({
           label="How old are you?"
           hint="Age caps how long a lender will let the loan run, which changes the EMI on the same amount."
         >
-          <PlainInput autoFocus value={a.age} onChange={(age) => setAnswers({ age })} placeholder="29" suffix="years" />
+          <PlainInput
+            autoFocus
+            value={a.age}
+            onChange={(age) => setAnswers({ age })}
+            placeholder="29"
+            suffix="years"
+          />
         </QuestionShell>
       );
 
@@ -1363,7 +1393,10 @@ function StepBody({
           <ChoiceGroup
             value={a.creditKnown}
             onChange={(creditKnown) => {
-              setAnswers({ creditKnown, creditScore: creditKnown === "yes" ? a.creditScore : null });
+              setAnswers({
+                creditKnown,
+                creditScore: creditKnown === "yes" ? a.creditScore : null,
+              });
               if (creditKnown !== "yes") onAnswered();
             }}
             options={[
@@ -1373,15 +1406,18 @@ function StepBody({
             ]}
           />
           <Note>
-            An unknown score is not a bad score. We simply have less information, so your rate range stays
-            wider instead of guessing against you.
+            An unknown score is not a bad score. We simply have less information, so your rate range
+            stays wider instead of guessing against you.
           </Note>
         </QuestionShell>
       );
 
     case "creditScore":
       return (
-        <QuestionShell label="What's your score?" hint="Anywhere from 300 to 900. A rough recall is fine.">
+        <QuestionShell
+          label="What's your score?"
+          hint="Anywhere from 300 to 900. A rough recall is fine."
+        >
           <PlainInput
             autoFocus
             value={a.creditScore}
@@ -1416,7 +1452,10 @@ function StepBody({
 
     case "offerDetail":
       return (
-        <QuestionShell label="What does the quote say?" hint="Copy it straight from the sanction letter or message.">
+        <QuestionShell
+          label="What does the quote say?"
+          hint="Copy it straight from the sanction letter or message."
+        >
           <div className="space-y-5">
             <Field label="Interest rate quoted">
               <PlainInput
@@ -1428,7 +1467,11 @@ function StepBody({
               />
             </Field>
             <Field label="Amount offered">
-              <MoneyInput value={a.offerAmount} onChange={(offerAmount) => setAnswers({ offerAmount })} placeholder="8,00,000" />
+              <MoneyInput
+                value={a.offerAmount}
+                onChange={(offerAmount) => setAnswers({ offerAmount })}
+                placeholder="8,00,000"
+              />
             </Field>
             <Field label="Tenure">
               <PlainInput
@@ -1439,7 +1482,11 @@ function StepBody({
               />
             </Field>
             <Field label="Processing fee" optional>
-              <MoneyInput value={a.offerFee} onChange={(offerFee) => setAnswers({ offerFee })} placeholder="12,000" />
+              <MoneyInput
+                value={a.offerFee}
+                onChange={(offerFee) => setAnswers({ offerFee })}
+                placeholder="12,000"
+              />
             </Field>
           </div>
         </QuestionShell>
@@ -1450,12 +1497,22 @@ function StepBody({
   }
 }
 
-function Field({ label, optional, children }: { label: string; optional?: boolean; children: React.ReactNode }) {
+function Field({
+  label,
+  optional,
+  children,
+}: {
+  label: string;
+  optional?: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <div>
       <p className="mb-2 text-sm font-medium">
         {label}
-        {optional ? <span className="ml-1.5 text-xs font-normal text-muted-foreground">optional</span> : null}
+        {optional ? (
+          <span className="ml-1.5 text-xs font-normal text-muted-foreground">optional</span>
+        ) : null}
       </p>
       {children}
     </div>
@@ -1486,11 +1543,15 @@ function MultiChoice<T extends string>({
             aria-pressed={on}
             onClick={() => onChange(on ? value.filter((v) => v !== o.value) : [...value, o.value])}
             className={`rounded-xl border px-4 py-3.5 text-left text-sm transition-colors ${
-              on ? "border-primary bg-primary/15 shadow-card" : "border-input hover:border-foreground/30"
+              on
+                ? "border-primary bg-primary/15 shadow-card"
+                : "border-input hover:border-foreground/30"
             }`}
           >
             <span className="font-medium">{o.label}</span>
-            {o.sub ? <span className="mt-0.5 block text-xs text-muted-foreground">{o.sub}</span> : null}
+            {o.sub ? (
+              <span className="mt-0.5 block text-xs text-muted-foreground">{o.sub}</span>
+            ) : null}
           </button>
         );
       })}

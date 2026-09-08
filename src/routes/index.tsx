@@ -22,7 +22,10 @@ export const Route = createFileRoute("/")({
         content:
           "Free self-assessment for Indian borrowers: should you borrow, how much a lender may sanction, your safe amount, a fair rate band, your EMI ceiling and a negotiation card.",
       },
-      { property: "og:title", content: "Borrower Copilot — Know your number before the lender does" },
+      {
+        property: "og:title",
+        content: "Borrower Copilot — Know your number before the lender does",
+      },
       {
         property: "og:description",
         content:
@@ -87,8 +90,8 @@ function Landing() {
               Know your number before the lender gives you theirs.
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground">
-              Borrower Copilot helps you decide how much to borrow, what EMI is safe, and what rate is
-              fair — before you walk into a lender.
+              Borrower Copilot helps you decide how much to borrow, what EMI is safe, and what rate
+              is fair — before you walk into a lender.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-4">
               <Link
@@ -148,8 +151,9 @@ function Landing() {
             What a lender may give you is not the same as what you should take.
           </p>
           <p className="mt-3 max-w-2xl text-sm leading-relaxed opacity-80">
-            Lenders answer "how much can we recover?". This tool answers "how much can you carry through
-            a bad month?" — and shows both numbers side by side so you can negotiate with the safer one.
+            Lenders answer "how much can we recover?". This tool answers "how much can you carry
+            through a bad month?" — and shows both numbers side by side so you can negotiate with
+            the safer one.
           </p>
         </div>
       </section>
@@ -157,7 +161,9 @@ function Landing() {
       {/* What you'll get */}
       <section id="how-it-works" className="mx-auto mt-20 max-w-6xl px-5 scroll-mt-24">
         <p className="eyebrow">What you'll get</p>
-        <h2 className="mt-3 text-3xl sm:text-4xl">Six answers, each traceable to your own inputs</h2>
+        <h2 className="mt-3 text-3xl sm:text-4xl">
+          Six answers, each traceable to your own inputs
+        </h2>
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {outputs.map((o) => (
             <div key={o.title} className="panel p-5 transition-shadow hover:shadow-lift">
@@ -174,14 +180,17 @@ function Landing() {
         <p className="eyebrow">Try a sample profile</p>
         <h2 className="mt-3 text-3xl sm:text-4xl">Three real-world borrowers</h2>
         <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
-          Load a profile to see the full flow and result instantly. You can edit any answer afterwards.
+          Load a profile to see the full flow and result instantly. You can edit any answer
+          afterwards.
         </p>
         <div className="mt-8 grid gap-4 lg:grid-cols-3">
           {sampleBorrowers.map((s) => (
             <div key={s.id} className="panel flex flex-col p-5">
               <h3 className="text-xl">{s.name}</h3>
               <p className="mt-2 text-sm font-medium text-foreground">{s.blurb}</p>
-              <p className="mt-2 flex-1 text-sm leading-relaxed text-muted-foreground">{s.detail}</p>
+              <p className="mt-2 flex-1 text-sm leading-relaxed text-muted-foreground">
+                {s.detail}
+              </p>
               <button
                 type="button"
                 onClick={() => loadSample(s.id)}
