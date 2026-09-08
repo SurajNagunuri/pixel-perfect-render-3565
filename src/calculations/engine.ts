@@ -466,6 +466,7 @@ export function calculateAffordability(a: Answers) {
       insurance: insurance.total,
       cardDebt,
       otherCommitments,
+      unknownAllowance: missingAllowance,
       freeCashFlow: Math.round(freeCashFlow),
       emiCapFromCashFlow: Math.round(cashCap),
       bufferShare: CASH_FLOW_BUFFER.value,
