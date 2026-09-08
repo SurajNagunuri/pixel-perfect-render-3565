@@ -1,6 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { AlertTriangle, ArrowRight, CheckCircle2, PencilLine, ShieldAlert, TrendingDown } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  PencilLine,
+  ShieldAlert,
+  TrendingDown,
+} from "lucide-react";
 import { CompareBar, ConfidencePill, Page, ResultSection, Why } from "@/components/SiteShell";
 import { runAssessment } from "@/calculations/engine";
 import { useAnswers } from "@/lib/store";
@@ -19,7 +26,8 @@ export const Route = createFileRoute("/results")({
       { property: "og:title", content: "Your borrowing position — Borrower Copilot" },
       {
         property: "og:description",
-        content: "Four answers with the reasoning behind every number, plus a printable negotiation card.",
+        content:
+          "Four answers with the reasoning behind every number, plus a printable negotiation card.",
       },
     ],
   }),
@@ -75,9 +83,7 @@ function Results() {
   // Scale every amount bar against the largest number on the page so the gap is honest.
   const amountMax = Math.max(r.lenderAmount.value.high, r.safeAmount.value.high, a.amount ?? 0);
   const emiMax = Math.max(r.lenderEmi.value, r.safeEmi.value, r.requestedEmi, r.stress.emi);
-  const recommended =
-    r.tenureTable.find((row) => row.months === r.recommendedTenureMonths) ?? null;
-
+  const recommended = r.tenureTable.find((row) => row.months === r.recommendedTenureMonths) ?? null;
 
   return (
     <Page>
@@ -122,7 +128,11 @@ function Results() {
 
         <div className="mt-12 space-y-14">
           {/* 01 — Should you borrow */}
-          <ResultSection step={1} title="Should you borrow?" question="The honest answer, before any number.">
+          <ResultSection
+            step={1}
+            title="Should you borrow?"
+            question="The honest answer, before any number."
+          >
             <div className="panel p-6">
               <ul className="space-y-2.5 text-sm">
                 {r.reasons.map((x) => (
@@ -193,10 +203,10 @@ function Results() {
               ) : null}
               <div>
                 <Why question="Why is the lender's number higher?">
-                  Lenders may work to a higher debt-service threshold ({Math.round(LENDER_FOIR[type] * 100)}% of
-                  income for your income type) than the borrower-side safety rule (
-                  {Math.round(SAFE_FOIR[type] * 100)}%), and they don't discount for the fragility signals you
-                  told us about. {r.lenderAmount.reason}
+                  Lenders may work to a higher debt-service threshold (
+                  {Math.round(LENDER_FOIR[type] * 100)}% of income for your income type) than the
+                  borrower-side safety rule ({Math.round(SAFE_FOIR[type] * 100)}%), and they don't
+                  discount for the fragility signals you told us about. {r.lenderAmount.reason}
                 </Why>
                 <Why question="How did we get your safer range?">
                   {r.safeAmount.reason} {r.safeEmi.reason}
@@ -206,7 +216,11 @@ function Results() {
           </ResultSection>
 
           {/* 03 — Fair rate */}
-          <ResultSection step={3} title="What's a fair rate?" question="Your benchmark before you walk in.">
+          <ResultSection
+            step={3}
+            title="What's a fair rate?"
+            question="Your benchmark before you walk in."
+          >
             <div className="panel p-6">
               <p className="num font-display text-[2.5rem] leading-none sm:text-[3rem]">
                 {formatPct(r.fairRate.value.low)}–{formatPct(r.fairRate.value.high)}
@@ -256,7 +270,11 @@ function Results() {
           </ResultSection>
 
           {/* 04 — EMI ceiling */}
-          <ResultSection step={4} title="What EMI should you agree to?" question="Your walk-away line.">
+          <ResultSection
+            step={4}
+            title="What EMI should you agree to?"
+            question="Your walk-away line."
+          >
             <div className="panel p-6">
               <p className="eyebrow">Do not cross</p>
               <p className="num mt-1.5 font-display text-[2.5rem] leading-none sm:text-[3rem]">
@@ -296,8 +314,8 @@ function Results() {
               </div>
 
               <p className="mt-5 text-sm leading-relaxed text-muted-foreground">
-                The amount you asked for takes {Math.round(r.foirNow * 100)}% of your assessed income once
-                existing EMIs are counted.
+                The amount you asked for takes {Math.round(r.foirNow * 100)}% of your assessed
+                income once existing EMIs are counted.
               </p>
 
               {/* Which of the two calculations actually set the ceiling. */}
@@ -308,9 +326,10 @@ function Results() {
                     : "Lending-rule limits set your ceiling, not your household spending."}
                 </p>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  Debt-service rules would allow around {formatINR(r.foirSafeEmi)}/month. After everything
-                  your household actually spends, {formatINR(r.cashFlow.emiCapFromCashFlow)}/month is what
-                  comfortably fits. We use the lower of the two
+                  Debt-service rules would allow around {formatINR(r.foirSafeEmi)}/month. After
+                  everything your household actually spends,{" "}
+                  {formatINR(r.cashFlow.emiCapFromCashFlow)}/month is what comfortably fits. We use
+                  the lower of the two
                   {r.safeEmi.value < Math.min(r.foirSafeEmi, r.cashFlow.emiCapFromCashFlow)
                     ? `, then trim it to ${formatINR(r.safeEmi.value)}/month so one bad month doesn't break the EMI`
                     : ""}
@@ -322,7 +341,10 @@ function Results() {
               <div className="mt-5 rounded-xl border border-border/80 bg-surface/70 p-4">
                 <p className="eyebrow">Where your monthly income goes</p>
                 <dl className="mt-3 divide-y divide-border/70 text-sm">
-                  <FlowRow label="Reliable household income" value={r.cashFlow.reliableHouseholdIncome} />
+                  <FlowRow
+                    label="Reliable household income"
+                    value={r.cashFlow.reliableHouseholdIncome}
+                  />
                   {r.cashFlow.spouseContribution > 0 ? (
                     <FlowRow
                       label="— of which counted from your spouse"
@@ -332,7 +354,6 @@ function Results() {
                   ) : null}
                   <FlowRow label="Household expenses" value={-r.cashFlow.householdExpenses} />
                   {r.cashFlow.existingEmi > 0 ? (
-
                     <FlowRow label="Existing EMIs" value={-r.cashFlow.existingEmi} />
                   ) : null}
                   {r.cashFlow.cardDebt > 0 ? (
@@ -353,8 +374,8 @@ function Results() {
                 </dl>
                 {r.cashFlow.missingCategories.length ? (
                   <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                    You left {r.cashFlow.missingCategories.join(", ")} blank. We held back a small allowance
-                    instead of assuming zero, so this figure stays cautious.
+                    You left {r.cashFlow.missingCategories.join(", ")} blank. We held back a small
+                    allowance instead of assuming zero, so this figure stays cautious.
                   </p>
                 ) : null}
                 {r.cashFlow.assumptions.length ? (
@@ -365,7 +386,6 @@ function Results() {
                   </ul>
                 ) : null}
               </div>
-
 
               <div className="mt-5 rounded-xl bg-caution-soft p-4">
                 <p className="text-sm font-medium">
@@ -447,8 +467,8 @@ function Results() {
         </div>
 
         <p className="mt-8 text-xs leading-relaxed text-muted-foreground">
-          Prototype rule, not a lender approval policy. Your actual offer may differ — we don't know bank
-          underwriting policies, bureau data or lender-specific fees.
+          Prototype rule, not a lender approval policy. Your actual offer may differ — we don't know
+          bank underwriting policies, bureau data or lender-specific fees.
         </p>
       </div>
 
@@ -488,11 +508,15 @@ function RateGauge({ low, high, quoted }: { low: number; high: number; quoted: n
       </div>
       <div className="num mt-2 flex justify-between text-xs text-muted-foreground">
         <span>{formatPct(scaleLow, 0)}</span>
-        <span className="text-positive">fair range {formatPct(low)}–{formatPct(high)}</span>
+        <span className="text-positive">
+          fair range {formatPct(low)}–{formatPct(high)}
+        </span>
         <span>{formatPct(scaleHigh, 0)}</span>
       </div>
       {quoted !== null ? (
-        <p className="mt-1.5 text-xs text-muted-foreground">Dot marks your quoted {formatPct(quoted)}.</p>
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          Dot marks your quoted {formatPct(quoted)}.
+        </p>
       ) : null}
     </div>
   );
@@ -521,10 +545,16 @@ function FlowRow({
 }) {
   return (
     <div className="flex items-baseline justify-between gap-4 py-2">
-      <dt className={muted ? "text-muted-foreground/80" : strong ? "font-medium" : "text-muted-foreground"}>
+      <dt
+        className={
+          muted ? "text-muted-foreground/80" : strong ? "font-medium" : "text-muted-foreground"
+        }
+      >
         {label}
       </dt>
-      <dd className={`num shrink-0 ${strong ? "font-medium" : ""} ${value < 0 ? "text-danger" : ""}`}>
+      <dd
+        className={`num shrink-0 ${strong ? "font-medium" : ""} ${value < 0 ? "text-danger" : ""}`}
+      >
         {value < 0 ? `− ${formatINR(Math.abs(value))}` : formatINR(value)}
       </dd>
     </div>

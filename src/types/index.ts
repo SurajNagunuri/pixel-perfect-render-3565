@@ -1,11 +1,5 @@
 export type Purpose =
-  | "home"
-  | "personal"
-  | "vehicle"
-  | "business"
-  | "against_property"
-  | "gold"
-  | "other";
+  "home" | "personal" | "vehicle" | "business" | "against_property" | "gold" | "other";
 
 export type IncomeType = "salaried" | "self_employed" | "informal" | "mixed";
 
@@ -39,6 +33,8 @@ export type SpouseContributes = "regular" | "sometimes" | "no" | "prefer_not";
 
 export type SpouseShare = "most" | "half" | "smaller" | "unsure";
 
+/** What is actually pledgeable. Drives the product, not just the price. */
+export type CollateralType = "property" | "gold" | "other" | "unsure";
 
 /** Household expense categories, asked one screen at a time. */
 export interface ExpenseBreakdown {
@@ -75,7 +71,6 @@ export interface Answers {
   numberOfDependents: DependentCount | null;
   childrenCount: ChildCount | null;
 
-
   // insurance & protection
   hasInsurance: YesNoUnknown | null;
   insuranceHealth: number | null;
@@ -86,6 +81,8 @@ export interface Answers {
   spouseContributes: SpouseContributes | null;
   spouseIncome: number | null;
   spouseReliableContribution: SpouseShare | null;
+  /** The rupee amount the spouse actually contributes, when the borrower knows it. */
+  spouseReliableAmount: number | null;
 
   // other recurring obligations
   hasCardDebt: boolean | null;
@@ -93,6 +90,8 @@ export interface Answers {
   /** Revolving balance still outstanding — the thing that makes it expensive. */
   cardDebtOutstanding: number | null;
   cardDebtRate: HighestRate | null;
+  /** Is that card / app-loan payment already inside the existing-EMI figure? */
+  cardDebtInExistingEmi: YesNoUnknown | null;
   hasOtherCommitments: boolean | null;
   otherFixedCommitments: number | null;
   creditKnown: CreditKnown | null;
@@ -108,6 +107,9 @@ export interface Answers {
   /** What a weaker but still normal month brings in. Asked of variable earners. */
   weakMonthIncome: number | null;
   hasCollateral: boolean | null;
+  /** Property, gold, something else, or not sure — each routes to a different product. */
+  collateralType: CollateralType | null;
+
   collateralValue: number | null;
   /** Is the collateral already mortgaged or pledged? Unknown is treated cautiously. */
   collateralHasLoan: YesNoUnknown | null;
@@ -117,7 +119,6 @@ export interface Answers {
   recentBounce: Bounce | null;
   /** How many missed payments in the last 12 months. */
   bounceCount: number | null;
-
 
   // shared
   emergencySavings: Savings | null;

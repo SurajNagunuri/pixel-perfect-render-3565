@@ -1,4 +1,4 @@
-import type { HighestRate, IncomeType, Purpose, Savings, Stability } from "@/types";
+import type { CollateralType, HighestRate, IncomeType, Purpose, Savings, Stability } from "@/types";
 
 /**
  * Central configuration. Change a number here and every output updates.
@@ -129,7 +129,6 @@ export const HIGH_COST_DEBT_RULES = {
   type: "my judgement" as const,
 };
 
-
 export const HIGHEST_RATE_VALUE: Record<HighestRate, number | null> = {
   lt12: 11,
   "12to18": 15,
@@ -163,7 +162,6 @@ export const INCOME_ASSESSMENT = {
   weakMonthReason:
     "For income that moves month to month we assess a blend weighted toward your weaker month, because the EMI has to survive that month too.",
 };
-
 
 export const HOUSEHOLD = {
   /** Share of leftover household cash (after expenses and existing EMIs) a new EMI may use. */
@@ -214,10 +212,7 @@ export const EMERGENCY_BUFFER_ADJUSTMENTS: Record<
 };
 
 /** Income steadiness moderates the cash-flow buffer as well as confidence. */
-export const INCOME_STABILITY_ADJUSTMENTS: Record<
-  Stability,
-  { haircut: number; note: string }
-> = {
+export const INCOME_STABILITY_ADJUSTMENTS: Record<Stability, { haircut: number; note: string }> = {
   stable: { haircut: 0, note: "steady monthly income" },
   varies_some: { haircut: 0.05, note: "income varies a little month to month" },
   varies_a_lot: { haircut: 0.15, note: "income varies a lot month to month" },
@@ -260,7 +255,6 @@ export const COLLATERAL = {
   type: "my judgement" as const,
 };
 
-
 /** A borrower is treated as carrying expensive debt at or above this annual rate. */
 export const HIGH_COST_DEBT_RATE_THRESHOLD = 24;
 
@@ -293,6 +287,21 @@ export const RATE_BAND = {
 
 /** When collateral is pledged, price against this product's band instead of the raw purpose. */
 export const SECURED_ROUTE_PURPOSE: Purpose = "against_property";
+
+/**
+ * Collateral routes to a product, not just a discount. Property goes to a loan against
+ * property, gold to a gold loan. "Something else" and "not sure" are NOT routed to a
+ * secured product at all — we will not price a loan against an asset we can't identify.
+ */
+export const COLLATERAL_ROUTE: Record<CollateralType, Purpose | null> = {
+  property: "against_property",
+  gold: "gold",
+  other: null,
+  unsure: null,
+};
+
+export const COLLATERAL_ROUTE_REASON =
+  "Property is priced as a loan against property; gold as a gold loan. If the asset is unclear we keep the unsecured pricing and say what to ask about instead of assuming a cheaper product.";
 
 /** Verdict thresholds. */
 export const VERDICT_THRESHOLDS = {

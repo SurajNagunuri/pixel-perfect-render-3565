@@ -22,10 +22,9 @@ import {
   RATE_FLOORS,
   RECENT_BOUNCE_RULES,
   HIGH_COST_DEBT_RULES,
-
   SAFETY_HAIRCUTS,
   SAFE_FOIR,
-  SECURED_ROUTE_PURPOSE,
+  COLLATERAL_ROUTE,
   STRESS_ASSUMPTIONS,
   TENURE_AGE_RULE,
   TENURE_OPTIONS,
@@ -40,6 +39,7 @@ import type {
   Confidence,
   ExpenseCategory,
   IncomeType,
+  Purpose,
   TenureRow,
   Verdict,
 } from "@/types";
@@ -156,13 +156,45 @@ export function calculateAssessableIncome(a: Answers): { value: number; reason: 
     value: stated,
     reason: `We assess your full stated monthly take-home income.${weakNote}`,
   };
+}
 
+/**
+ * The one canonical definition of expensive debt, used by every calculation that cares.
+ * It combines the rate on existing loans, the rate on a card / app-loan balance and the
+ * borrower's own explicit answer. A later "I don't know" can never erase a signal an
+ * earlier answer already established.
+ */
+export function highCostDebtSignal(a: Answers): { present: boolean; sources: string[] } {
+  const sources: string[] = [];
+  const existingRate = a.highestExistingRate ? HIGHEST_RATE_VALUE[a.highestExistingRate] : null;
+  const cardRate = a.cardDebtRate ? HIGHEST_RATE_VALUE[a.cardDebtRate] : null;
+  if (a.highCostDebt === true) sources.push("you told us you carry expensive debt");
+  if (existingRate !== null && existingRate >= HIGH_COST_DEBT_RATE_THRESHOLD)
+    sources.push(`an existing loan priced at about ${existingRate}%`);
+  if (cardRate !== null && cardRate >= HIGH_COST_DEBT_RATE_THRESHOLD)
+    sources.push(`a card or app loan priced at about ${cardRate}%`);
+  return { present: sources.length > 0, sources };
 }
 
 /** True when the borrower carries debt priced at or above the high-cost threshold. */
 export function hasExpensiveExistingDebt(a: Answers): boolean {
-  const highestRate = a.highestExistingRate ? HIGHEST_RATE_VALUE[a.highestExistingRate] : null;
-  return a.highCostDebt === true || (highestRate !== null && highestRate >= HIGH_COST_DEBT_RATE_THRESHOLD);
+  return highCostDebtSignal(a).present;
+}
+
+/**
+ * The card / app-loan payment counted separately. When the borrower has told us that
+ * payment is already inside their existing-EMI figure we count it once, in existing EMIs,
+ * and never again here — the single most important double-counting guard in the model.
+ */
+export function separateCardDebtPayment(a: Answers): { value: number; note: string | null } {
+  if (a.hasCardDebt !== true) return { value: 0, note: null };
+  const monthly = a.cardDebtMonthly ?? 0;
+  if (a.cardDebtInExistingEmi === "yes")
+    return {
+      value: 0,
+      note: "Your card / app-loan payment is already inside the existing-EMI figure you gave us, so we count it once there and not twice.",
+    };
+  return { value: monthly, note: null };
 }
 
 /** Cash actually in hand each month — never the documented-income discount. */
@@ -196,7 +228,6 @@ export function householdExpenseTotal(a: Answers): {
   const total = answered.reduce((sum, [, v]) => sum + (v as number), 0);
   const missing = entries.filter(([, v]) => v === null).map(([k]) => EXPENSE_LABELS[k]);
   return { total, missing, usedLegacy: false };
-
 }
 
 /**
@@ -222,7 +253,8 @@ export function insurancePremiumTotal(
 
 /** Only the part of a spouse's income that reliably reaches the household. */
 export function spouseContribution(a: Answers): { value: number; reason: string | null } {
-  if (a.maritalStatus !== "married" || a.spouseContributes === null) return { value: 0, reason: null };
+  if (a.maritalStatus !== "married" || a.spouseContributes === null)
+    return { value: 0, reason: null };
   const regularity = SPOUSE_CONTRIBUTION.regularity[a.spouseContributes];
   if (regularity === 0 || a.spouseIncome === null)
     return {
@@ -232,11 +264,19 @@ export function spouseContribution(a: Answers): { value: number; reason: string 
           ? "You preferred not to share spouse income, so we count none of it. That keeps the estimate conservative rather than optimistic."
           : null,
     };
+  /** If the borrower told us the actual rupee contribution, we use it rather than a bucket. */
+  if (a.spouseReliableAmount !== null && a.spouseReliableAmount >= 0) {
+    const value = Math.min(Math.round(a.spouseReliableAmount * regularity), a.spouseIncome);
+    return {
+      value,
+      reason: `Your spouse earns about ₹${a.spouseIncome.toLocaleString("en-IN")}/month and you told us about ₹${a.spouseReliableAmount.toLocaleString("en-IN")} of it reaches the household. We count ₹${value.toLocaleString("en-IN")}${regularity < 1 ? ", trimmed because that earning is not every month" : ""} — never the full income.`,
+    };
+  }
   const share = SPOUSE_CONTRIBUTION.share[a.spouseReliableContribution ?? "unsure"];
   const value = Math.round(a.spouseIncome * regularity * share);
   return {
     value,
-    reason: `Your spouse earns about ₹${a.spouseIncome.toLocaleString("en-IN")}/month. We count ₹${value.toLocaleString("en-IN")} of it as reliably available for household costs and repayment — never the full amount.`,
+    reason: `Your spouse earns about ₹${a.spouseIncome.toLocaleString("en-IN")}/month. You didn't give an exact contribution, so we count ₹${value.toLocaleString("en-IN")} of it as reliably available for household costs and repayment — never the full amount.`,
   };
 }
 
@@ -244,7 +284,12 @@ export function spouseContribution(a: Answers): { value: number; reason: string 
 export function reliableHouseholdIncome(a: Answers, assessed: number) {
   const borrower = householdCashIncome(a, assessed);
   const spouse = spouseContribution(a);
-  return { borrower, spouse: spouse.value, total: borrower + spouse.value, spouseReason: spouse.reason };
+  return {
+    borrower,
+    spouse: spouse.value,
+    total: borrower + spouse.value,
+    spouseReason: spouse.reason,
+  };
 }
 
 /* ---------- affordability ---------- */
@@ -262,7 +307,9 @@ export function calculateAffordability(a: Answers) {
   const cashIncome = householdCashIncome(a, income.value);
   const household = reliableHouseholdIncome(a, income.value);
   const insurance = insurancePremiumTotal(a, household.total);
-  const cardDebt = a.hasCardDebt === true ? (a.cardDebtMonthly ?? 0) : 0;
+  const cardDebtPayment = separateCardDebtPayment(a);
+  const cardDebt = cardDebtPayment.value;
+
   const otherCommitments = a.hasOtherCommitments === true ? (a.otherFixedCommitments ?? 0) : 0;
 
   const rawSafe = Math.max(0, income.value * safeFoir - existing);
@@ -270,9 +317,13 @@ export function calculateAffordability(a: Answers) {
 
   const haircuts: { label: string; pct: number }[] = [];
   if (a.variableIncomePct === "gt25")
-    haircuts.push({ label: "over 25% of income is variable", pct: SAFETY_HAIRCUTS.variableIncomeHigh });
+    haircuts.push({
+      label: "over 25% of income is variable",
+      pct: SAFETY_HAIRCUTS.variableIncomeHigh,
+    });
   const stability = a.incomeStability ? INCOME_STABILITY_ADJUSTMENTS[a.incomeStability] : null;
-  if (stability && stability.haircut > 0) haircuts.push({ label: stability.note, pct: stability.haircut });
+  if (stability && stability.haircut > 0)
+    haircuts.push({ label: stability.note, pct: stability.haircut });
   if (a.recentBounce === "yes_3m")
     haircuts.push({
       label: `a missed payment in the last ${RECENT_BOUNCE_RULES.recentMonths} months`,
@@ -338,7 +389,13 @@ export function calculateAffordability(a: Answers) {
       ? Math.round(household.total * UNKNOWN_ALLOWANCES.expenseCategoryShareOfIncome)
       : 0;
   const freeCashFlow =
-    household.total - expenses - existing - insurance.total - cardDebt - otherCommitments - missingAllowance;
+    household.total -
+    expenses -
+    existing -
+    insurance.total -
+    cardDebt -
+    otherCommitments -
+    missingAllowance;
   const cashCap = Math.max(0, freeCashFlow * CASH_FLOW_BUFFER.value);
   const cashLeft = freeCashFlow;
 
@@ -350,7 +407,8 @@ export function calculateAffordability(a: Answers) {
 
   // C. The safe EMI is the lower of the two capacities, then trimmed for fragility signals.
   const bound = Math.min(rawSafe, cashCap);
-  const bindingConstraint: "debt_service" | "cash_flow" = cashCap < rawSafe ? "cash_flow" : "debt_service";
+  const bindingConstraint: "debt_service" | "cash_flow" =
+    cashCap < rawSafe ? "cash_flow" : "debt_service";
   let safeEmi = bound;
   for (const h of haircuts) safeEmi *= 1 - h.pct;
   safeEmi = Math.max(0, Math.round(safeEmi));
@@ -362,6 +420,7 @@ export function calculateAffordability(a: Answers) {
       `You skipped ${expenseInfo.missing.join(", ").toLowerCase()}, so we hold back about ₹${missingAllowance.toLocaleString("en-IN")}/month for them rather than assuming they cost nothing — and your safer range stays deliberately wider.`,
     );
   if (household.spouseReason) assumptions.push(household.spouseReason);
+  if (cardDebtPayment.note) assumptions.push(cardDebtPayment.note);
 
   const reasonParts: string[] = [
     `Two separate checks. Your lender-style debt-service ceiling is ${Math.round(safeFoir * 100)}% of the ₹${income.value.toLocaleString("en-IN")}/month we can assess${existing > 0 ? `, less the ₹${existing.toLocaleString("en-IN")} already going to existing EMIs` : ""}, which allows about ₹${Math.round(rawSafe).toLocaleString("en-IN")}/month.`,
@@ -375,7 +434,9 @@ export function calculateAffordability(a: Answers) {
       "You didn't tell us your existing EMIs, so we could not subtract them — if you do have EMIs running, your real ceiling is lower than this.",
     );
   if (haircuts.length)
-    reasonParts.push(`We then reduced the headroom for ${haircuts.map((h) => h.label).join(", ")}.`);
+    reasonParts.push(
+      `We then reduced the headroom for ${haircuts.map((h) => h.label).join(", ")}.`,
+    );
   if (assumptions.length) reasonParts.push(assumptions.join(" "));
 
   return {
@@ -400,7 +461,7 @@ export function calculateAffordability(a: Answers) {
       borrowerIncome: Math.round(household.borrower),
       spouseContribution: Math.round(household.spouse),
       householdExpenses: Math.round(expenses),
-      
+
       existingEmi: existing,
       insurance: insurance.total,
       cardDebt,
@@ -417,11 +478,23 @@ export function calculateAffordability(a: Answers) {
 /* ---------- secured routing ---------- */
 
 /**
+ * Which secured product this collateral actually points to. Property means a loan against
+ * property, gold means a gold loan. An unclear asset routes nowhere — we would rather keep
+ * the honest unsecured pricing than quote a product the borrower may not be able to get.
+ */
+export function securedProductPurpose(a: Answers): Purpose | null {
+  if (a.hasCollateral !== true) return null;
+  if ((a.collateralValue ?? 0) < COLLATERAL.minValueToRouteSecured) return null;
+  const type = a.collateralType ?? "unsure";
+  return COLLATERAL_ROUTE[type] ?? null;
+}
+
+/**
  * Pledgeable collateral changes the product, not just the price: it is what lets us
  * quote a secured band, a secured tenure and an LTV-capped sanction.
  */
 export function isSecuredRoute(a: Answers): boolean {
-  return a.hasCollateral === true && (a.collateralValue ?? 0) >= COLLATERAL.minValueToRouteSecured;
+  return securedProductPurpose(a) !== null;
 }
 
 /* ---------- fair rate ---------- */
@@ -432,9 +505,11 @@ export function calculateFairRate(a: Answers): {
   factors: string[];
 } {
   const purpose = a.purpose ?? "other";
-  const secured = isSecuredRoute(a);
+  const securedPurpose = securedProductPurpose(a);
+  const secured = securedPurpose !== null;
   /** With collateral we price the secured product the borrower should actually ask for. */
-  const pricedPurpose = secured ? SECURED_ROUTE_PURPOSE : purpose;
+  const pricedPurpose = securedPurpose ?? purpose;
+
   const base = RATE_BANDS[pricedPurpose];
   let low = base.low;
   let high = base.high;
@@ -487,9 +562,14 @@ export function calculateFairRate(a: Answers): {
   if (secured) {
     low += RATE_ADJUSTMENTS.collateralShift;
     high += RATE_ADJUSTMENTS.collateralShift;
-    factors.push("Pledgeable collateral can move you to a secured product at a materially lower rate.");
+    factors.push(
+      "Pledgeable collateral can move you to a secured product at a materially lower rate.",
+    );
   }
-  if ((a.incomeType === "self_employed" || a.incomeType === "mixed") && a.documentedAnnualIncome === null) {
+  if (
+    (a.incomeType === "self_employed" || a.incomeType === "mixed") &&
+    a.documentedAnnualIncome === null
+  ) {
     high += RATE_ADJUSTMENTS.undocumentedIncomeShift;
     factors.push("Income that is not visible in filings pushes the upper end higher.");
   }
@@ -500,7 +580,9 @@ export function calculateFairRate(a: Answers): {
   } else if (a.recentBounce === "yes_older") {
     low += RECENT_BOUNCE_RULES.olderRateShift;
     high += RECENT_BOUNCE_RULES.olderRateShift;
-    factors.push("A missed payment earlier in the year still shows on your record, so pricing is a little higher.");
+    factors.push(
+      "A missed payment earlier in the year still shows on your record, so pricing is a little higher.",
+    );
   }
 
   if (hasExpensiveExistingDebt(a)) {
@@ -565,7 +647,10 @@ export function calculateLenderLikelySanction(emi: number, rate: Band, months: n
         : 1;
   const effectiveLtv = COLLATERAL.ltvCap * encumbrance;
   if (secured) {
-    const ltvCap = roundTo((a.collateralValue as number) * effectiveLtv, principalRoundingStep(band.high));
+    const ltvCap = roundTo(
+      (a.collateralValue as number) * effectiveLtv,
+      principalRoundingStep(band.high),
+    );
     band.low = Math.min(band.low, ltvCap);
     band.high = Math.min(Math.max(band.high, band.low), ltvCap);
   }
@@ -575,11 +660,13 @@ export function calculateLenderLikelySanction(emi: number, rate: Band, months: n
   };
 }
 
-
-
 /* ---------- tenure table & stress ---------- */
 
-export function tenureTable(principal: number, ratePct: number, purpose: Answers["purpose"]): TenureRow[] {
+export function tenureTable(
+  principal: number,
+  ratePct: number,
+  purpose: Answers["purpose"],
+): TenureRow[] {
   const options = TENURE_OPTIONS[purpose ?? "other"];
   return options.map((months) => {
     const emi = calculateEMI(principal, ratePct, months);
@@ -631,7 +718,11 @@ export function calculateStressCase(
       stressedNote,
     };
   }
-  const stressEmi = calculateEMI(principal, ratePct + STRESS_ASSUMPTIONS.rateIncreasePoints, months);
+  const stressEmi = calculateEMI(
+    principal,
+    ratePct + STRESS_ASSUMPTIONS.rateIncreasePoints,
+    months,
+  );
   const foir = assessableIncome > 0 ? (stressEmi + existing) / assessableIncome : 1;
   return {
     kind: "rate" as const,
@@ -650,7 +741,14 @@ export function generateConfidence(a: Answers) {
   const notes: string[] = [];
   const expenseInfo = householdExpenseTotal(a);
   const expensesAnswered = expenseInfo.total > 0;
-  const core = [a.purpose, a.amount, a.incomeType, a.monthlyIncome, expensesAnswered ? true : null, a.age];
+  const core = [
+    a.purpose,
+    a.amount,
+    a.incomeType,
+    a.monthlyIncome,
+    expensesAnswered ? true : null,
+    a.age,
+  ];
   const extra = [
     a.incomeStability,
     a.emergencySavings,
@@ -685,21 +783,27 @@ export function generateConfidence(a: Answers) {
       "Insurance premiums are unknown. We do not assume they are zero — we hold back a small allowance instead, which keeps the range wider.",
     );
   }
-  if (a.maritalStatus === "married" && (a.spouseReliableContribution === "unsure" || a.spouseContributes === "prefer_not")) {
+  if (
+    a.maritalStatus === "married" &&
+    (a.spouseReliableContribution === "unsure" || a.spouseContributes === "prefer_not")
+  ) {
     overall = overall === "High" ? "Medium" : overall;
     notes.push(
       "How much of your spouse's income reliably reaches the household is uncertain, so we count only a conservative part of it rather than treating it as guaranteed.",
     );
   }
   if (a.emergencySavings === "unknown")
-    notes.push("Your savings cushion is unknown, which widens the range rather than lowering your capacity.");
+    notes.push(
+      "Your savings cushion is unknown, which widens the range rather than lowering your capacity.",
+    );
   if (a.emergencySavings === "6plus")
-    notes.push("A 6+ month savings cushion is the strongest single sign that you can absorb a bad month.");
+    notes.push(
+      "A 6+ month savings cushion is the strongest single sign that you can absorb a bad month.",
+    );
   if (a.recentBounce === "unknown")
     notes.push(
       "You weren't sure about missed payments, so we widen the range instead of assuming the worst or the best.",
     );
-
 
   let rate: Confidence = "Medium";
   if (a.creditKnown === "yes" && a.creditScore !== null) {
@@ -727,7 +831,10 @@ export function generateConfidence(a: Answers) {
   }
 
   let amount: Confidence = overall;
-  if ((a.incomeType === "self_employed" || a.incomeType === "mixed") && a.documentedAnnualIncome === null) {
+  if (
+    (a.incomeType === "self_employed" || a.incomeType === "mixed") &&
+    a.documentedAnnualIncome === null
+  ) {
     amount = "Low";
     notes.push(
       "Amount confidence is Low because your documented income is unknown — a lender will size the loan on filings, not on cash takings.",
@@ -743,7 +850,10 @@ export function generateConfidence(a: Answers) {
       "You skipped existing EMIs, so we could not deduct them. If you do have loans running, treat every amount here as an over-estimate.",
     );
   }
-  if ((a.existingEmi ?? 0) > 0 && (a.highestExistingRate === null || a.highestExistingRate === "unknown"))
+  if (
+    (a.existingEmi ?? 0) > 0 &&
+    (a.highestExistingRate === null || a.highestExistingRate === "unknown")
+  )
     notes.push(
       "The rate on your existing loans is unknown, so we couldn't tell whether refinancing would free up capacity.",
     );
@@ -774,7 +884,8 @@ export function generateVerdict(
   const bounce = a.recentBounce === "yes_3m";
   const fragile = a.incomeStability === "varies_a_lot" && a.emergencySavings === "lt1";
   const noRoom = safeEmi <= 0 || cashLeft <= 0;
-  const wayOver = safeEmi > 0 && requestedEmi > safeEmi * VERDICT_THRESHOLDS.farAboveSafeEmiMultiple;
+  const wayOver =
+    safeEmi > 0 && requestedEmi > safeEmi * VERDICT_THRESHOLDS.farAboveSafeEmiMultiple;
   const eatsFreeCash = cashLeft > 0 && requestedEmi > cashLeft;
 
   const flags: string[] = [];
@@ -788,9 +899,12 @@ export function generateVerdict(
     );
   if (eatsFreeCash)
     flags.push("this EMI is larger than all the money left over after your household commitments");
-  if (wayOver) flags.push("the EMI on the amount you want is far above what your cash flow can carry");
+  if (wayOver)
+    flags.push("the EMI on the amount you want is far above what your cash flow can carry");
   if (fragile)
-    flags.push("your income swings a lot and there is under a month of savings to absorb a bad month");
+    flags.push(
+      "your income swings a lot and there is under a month of savings to absorb a bad month",
+    );
 
   // "Don't borrow" is reserved for genuine fragility, not simply asking for too much.
   // Collateral is never on its own a reason to stop — it is a reason to change product.
@@ -828,19 +942,28 @@ export function generateVerdict(
   };
 }
 
-export function generateReasons(a: Answers, assessment: Omit<Assessment, "reasons" | "nextSteps">): string[] {
+export function generateReasons(
+  a: Answers,
+  assessment: Omit<Assessment, "reasons" | "nextSteps">,
+): string[] {
   const out: string[] = [];
   if (a.creditKnown === "yes" && (a.creditScore ?? 0) >= VERDICT_THRESHOLDS.strongCreditScore)
-    out.push(`Strong credit profile (score ${a.creditScore}) — ask for the lower end of the range.`);
+    out.push(
+      `Strong credit profile (score ${a.creditScore}) — ask for the lower end of the range.`,
+    );
   else if (a.creditKnown !== "yes")
-    out.push("Credit score unknown — pull your free bureau report before negotiating; it may move your rate.");
+    out.push(
+      "Credit score unknown — pull your free bureau report before negotiating; it may move your rate.",
+    );
   if ((a.existingEmi ?? 0) > 0) {
     const loans = a.activeLoans ?? 0;
     out.push(
       `Existing EMIs already use ₹${(a.existingEmi as number).toLocaleString("en-IN")}/month of your income${loans > 0 ? ` across ${loans} active ${loans === 1 ? "loan" : "loans"}${a.outstandingPrincipal ? ` (₹${a.outstandingPrincipal.toLocaleString("en-IN")} still outstanding)` : ""}` : ""}, and that is deducted before your ceiling is set.`,
     );
   } else if (a.existingEmi === null)
-    out.push("You skipped existing EMIs — anything already running reduces every number on this page.");
+    out.push(
+      "You skipped existing EMIs — anything already running reduces every number on this page.",
+    );
   else out.push("No existing EMIs, so your full debt-service capacity is available.");
 
   const cf = assessment.cashFlow;
@@ -863,9 +986,10 @@ export function generateReasons(a: Answers, assessment: Omit<Assessment, "reason
   if (assessment.verdict.value === "BORROW_LESS")
     out.push("Requested amount is above the safer affordability range.");
   if (isSecuredRoute(a))
-    out.push("Collateral available — this should be asked for as a secured loan, which is priced lower.");
+    out.push(
+      "Collateral available — this should be asked for as a secured loan, which is priced lower.",
+    );
   return out.slice(0, 5);
-
 }
 
 function nextSteps(a: Answers, verdict: Verdict, secured: string | null): string[] {
@@ -884,7 +1008,8 @@ function nextSteps(a: Answers, verdict: Verdict, secured: string | null): string
     "Take the shortest tenure whose EMI still stays under your ceiling.",
   ];
   if (secured) steps.unshift(secured);
-  if (a.creditKnown !== "yes") steps.push("Check your credit score before applying; it may move your rate band.");
+  if (a.creditKnown !== "yes")
+    steps.push("Check your credit score before applying; it may move your rate band.");
   return steps;
 }
 
@@ -894,7 +1019,10 @@ function nextSteps(a: Answers, verdict: Verdict, secured: string | null): string
  * Age materially limits tenure: the loan has to be repaid inside the borrower's
  * earning years, which is why we ask for age at all.
  */
-export function tenureLimitForAge(a: Answers, requested: number): { months: number; note: string | null } {
+export function tenureLimitForAge(
+  a: Answers,
+  requested: number,
+): { months: number; note: string | null } {
   if (a.age === null) return { months: requested, note: null };
   const type = effectiveIncomeType(a);
   const endAge = type === "salaried" ? TENURE_AGE_RULE.salariedEndAge : TENURE_AGE_RULE.otherEndAge;
@@ -931,11 +1059,13 @@ export function runAssessment(a: Answers): Assessment {
   const rate = calculateFairRate(a);
   const midRate = (rate.value.low + rate.value.high) / 2;
   // Pledgeable collateral opens up secured products, which run longer than the unsecured default.
-  const securedRoute = isSecuredRoute(a);
-  const tenurePurpose = securedRoute ? SECURED_ROUTE_PURPOSE : purpose;
-  const requestedTenure = securedRoute
-    ? Math.max(DEFAULT_TENURES[purpose], DEFAULT_TENURES[SECURED_ROUTE_PURPOSE])
+  const securedPurpose = securedProductPurpose(a);
+  const securedRoute = securedPurpose !== null;
+  const tenurePurpose = securedPurpose ?? purpose;
+  const requestedTenure = securedPurpose
+    ? Math.max(DEFAULT_TENURES[purpose], DEFAULT_TENURES[securedPurpose])
     : DEFAULT_TENURES[purpose];
+
   const tenureLimit = tenureLimitForAge(a, requestedTenure);
   const months = tenureLimit.months;
 
@@ -946,8 +1076,16 @@ export function runAssessment(a: Answers): Assessment {
   const requestedEmi = Math.round(calculateEMI(requested, midRate, months));
 
   const charges = upfrontCharges(a, requested);
-  const aprLow = calculateAPR(charges.netDisbursed, calculateEMI(requested, rate.value.low, months), months);
-  const aprHigh = calculateAPR(charges.netDisbursed, calculateEMI(requested, rate.value.high, months), months);
+  const aprLow = calculateAPR(
+    charges.netDisbursed,
+    calculateEMI(requested, rate.value.low, months),
+    months,
+  );
+  const aprHigh = calculateAPR(
+    charges.netDisbursed,
+    calculateEMI(requested, rate.value.high, months),
+    months,
+  );
 
   const stress = calculateStressCase(
     a,
@@ -970,9 +1108,12 @@ export function runAssessment(a: Answers): Assessment {
     securedRoute,
   );
 
+  const securedProductName = securedPurpose ? RATE_BANDS[securedPurpose].label.toLowerCase() : null;
   const secured = securedRoute
-    ? `You have collateral worth about ₹${(a.collateralValue as number).toLocaleString("en-IN")}${a.collateralHasLoan === "yes" ? ", already carrying a loan, so only part of its value is free" : a.collateralHasLoan === "unknown" ? ", though you weren't sure whether it already carries a loan, so we stayed cautious" : " and free of any existing loan"}. Ask specifically about a secured product (loan against property / business loan against collateral) — it is usually several percentage points cheaper than the unsecured quote you'll be offered first, and we have already priced your range as a secured loan. Collateral raises what a lender may sanction; it does not raise what your household can repay each month.`
-    : null;
+    ? `You have ${a.collateralType === "gold" ? "gold" : "property"} worth about ₹${(a.collateralValue as number).toLocaleString("en-IN")}${a.collateralHasLoan === "yes" ? ", already carrying a loan, so only part of its value is free" : a.collateralHasLoan === "unknown" ? ", though you weren't sure whether it already carries a loan, so we stayed cautious" : " and free of any existing loan"}. Ask specifically for a ${securedProductName} — it is usually several percentage points cheaper than the unsecured quote you'll be offered first, and we have already priced your range as that product. Collateral raises what a lender may sanction; it does not raise what your household can repay each month.`
+    : a.hasCollateral === true
+      ? `You said you have something you could pledge, but ${a.collateralType === "unsure" || a.collateralType === null ? "we couldn't tell what kind of asset it is" : "it isn't property or gold"}${(a.collateralValue ?? 0) > 0 && (a.collateralValue ?? 0) < COLLATERAL.minValueToRouteSecured ? ", and its value is small relative to what you want to borrow" : ""}, so we have kept the honest unsecured pricing. Ask a lender directly whether they will lend against it — if they will, your rate should drop.`
+      : null;
 
   const foirNow =
     aff.incomeBasis.value > 0 ? (requestedEmi + (a.existingEmi ?? 0)) / aff.incomeBasis.value : 1;
@@ -981,10 +1122,10 @@ export function runAssessment(a: Answers): Assessment {
   const tenureRows = tenureTable(requested, midRate, tenurePurpose).filter(
     (row) => row.months <= tenureLimit.months,
   );
-  const recommendedTenureMonths = tenureRows.find((row) => row.emi <= aff.safeEmi.value)?.months ?? null;
+  const recommendedTenureMonths =
+    tenureRows.find((row) => row.emi <= aff.safeEmi.value)?.months ?? null;
 
   const partial: Omit<Assessment, "reasons" | "nextSteps"> = {
-
     verdict,
     safeEmi: aff.safeEmi,
     lenderEmi: aff.lenderEmi,
@@ -1018,7 +1159,6 @@ export function runAssessment(a: Answers): Assessment {
     existingEmiKnown: a.existingEmi !== null,
   };
 
-
   return {
     ...partial,
     reasons: generateReasons(a, partial),
@@ -1027,17 +1167,26 @@ export function runAssessment(a: Answers): Assessment {
 }
 
 function buildOfferComparison(a: Answers, fair: Band) {
-  if (a.hasOffer !== true || a.offerRate === null || a.offerAmount === null || a.offerTenureMonths === null)
+  if (
+    a.hasOffer !== true ||
+    a.offerRate === null ||
+    a.offerAmount === null ||
+    a.offerTenureMonths === null
+  )
     return null;
   // Same upfront-charge model as the APR card, so the two numbers can't disagree.
   const charges = upfrontCharges(a, a.offerAmount);
   const emi = calculateEMI(a.offerAmount, a.offerRate, a.offerTenureMonths);
   const apr = calculateAPR(charges.netDisbursed, emi, a.offerTenureMonths).value;
   let verdict: string;
-  if (a.offerRate <= fair.low) verdict = "This quote is better than the fair range for your profile. Worth taking.";
+  if (a.offerRate <= fair.low)
+    verdict = "This quote is better than the fair range for your profile. Worth taking.";
   else if (a.offerRate <= fair.high)
-    verdict = "This quote sits inside the fair range for your profile — but push for the lower end and a smaller fee.";
-  else verdict = "This quote is above the fair range for your profile. Ask for a reduction or compare another lender.";
+    verdict =
+      "This quote sits inside the fair range for your profile — but push for the lower end and a smaller fee.";
+  else
+    verdict =
+      "This quote is above the fair range for your profile. Ask for a reduction or compare another lender.";
   return {
     rate: a.offerRate,
     feeRupees: Math.round(charges.fee),
@@ -1046,7 +1195,6 @@ function buildOfferComparison(a: Answers, fair: Band) {
     verdict,
   };
 }
-
 
 /* ---------- validation ---------- */
 
