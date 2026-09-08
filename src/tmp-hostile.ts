@@ -63,8 +63,9 @@ function invariants(label: string, a: Answers) {
   );
   check(`${s} rate band ordered & sane`, r.fairRate.value.low > 0 && r.fairRate.value.low < r.fairRate.value.high && r.fairRate.value.high < 45, JSON.stringify(r.fairRate.value));
   check(`${s} rate band >= 1.5 wide`, r.fairRate.value.high - r.fairRate.value.low >= 1.49, JSON.stringify(r.fairRate.value));
-  check(`${s} APR above rate at both ends`, r.apr.value.low > r.fairRate.value.low && r.apr.value.high > r.fairRate.value.high, JSON.stringify(r.apr.value));
-  check(`${s} net disbursed < requested`, r.netDisbursed <= (a.amount ?? 0) && r.netDisbursed > 0);
+  const hasAmount = (a.amount ?? 0) > 0;
+  check(`${s} APR above rate at both ends`, !hasAmount ? r.apr.value.low === r.fairRate.value.low : r.apr.value.low > r.fairRate.value.low && r.apr.value.high > r.fairRate.value.high, JSON.stringify(r.apr.value));
+  check(`${s} net disbursed < requested`, !hasAmount ? r.netDisbursed === 0 : r.netDisbursed <= (a.amount ?? 0) && r.netDisbursed > 0);
   check(`${s} tenure positive`, r.assumedTenureMonths >= 12);
   check(`${s} requested EMI matches amount`, Math.abs(r.requestedEmi - calculateEMI(a.amount!, (r.fairRate.value.low + r.fairRate.value.high) / 2, r.assumedTenureMonths)) < 2, String(r.requestedEmi));
   check(`${s} verdict present`, ["BORROW", "BORROW_LESS", "DONT_BORROW"].includes(r.verdict.value));
@@ -88,7 +89,7 @@ function invariants(label: string, a: Answers) {
     r.verdict.value !== "BORROW" || r.requestedEmi <= r.safeEmi.value * 1.02,
     `req ${r.requestedEmi} ceiling ${r.safeEmi.value}`,
   );
-  check(`${s} stress EMI >= requested-or-safe base`, r.stress.emi > 0);
+  check(`${s} stress EMI >= requested-or-safe base`, !hasAmount ? r.stress.emi === 0 : r.stress.emi > 0);
   return r;
 }
 
