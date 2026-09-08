@@ -78,6 +78,18 @@ bunx tsgo --noEmit # types
 bun run build
 ```
 
+## Hosting on GitHub Pages
+
+The app is fully client-side, so `bun run build` prerenders every page to static files in
+`dist/client`, which is what GitHub Pages hosts.
+
+1. Push this repository to GitHub.
+2. In the repo, go to **Settings → Pages** and set **Source** to **GitHub Actions**.
+3. Push to `main` (or run the **Deploy to GitHub Pages** workflow manually from the Actions tab).
+
+The workflow in `.github/workflows/deploy-pages.yml` builds the static site and publishes it to
+`https://<your-username>.github.io/<repo-name>/`.
+
 ## Scope
 
 An educational self-assessment prototype. Figures are estimates from self-reported information using
