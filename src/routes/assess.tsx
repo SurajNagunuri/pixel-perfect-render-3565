@@ -61,7 +61,9 @@ type StepId =
   | "debtRate"
   | "cardDebt"
   | "cardDebtAmount"
+  | "cardDebtInEmi"
   | "cardDebtBalance"
+
   | "expenses"
   | "insurance"
   | "insuranceDetail"
