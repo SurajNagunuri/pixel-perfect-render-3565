@@ -3,7 +3,7 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 export default defineConfig({
   // GitHub Pages serves the app from /<repo-name>/, so the build step
   // passes GH_PAGES_BASE (e.g. "/borrower-copilot/"). Locally this is "/".
-  base: process.env.GH_PAGES_BASE || "/",
+  vite: { base: process.env["GH_PAGES_BASE"] || "/" },
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
