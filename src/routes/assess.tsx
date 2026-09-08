@@ -40,8 +40,10 @@ type StepId =
   | "businessVintage"
   | "documented"
   | "collateral"
+  | "collateralKind"
   | "collateralValue"
   | "collateralLoan"
+
   | "highCostDebt"
   | "bounce"
   | "bounceCount"
