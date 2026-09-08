@@ -35,10 +35,12 @@ export const emptyAnswers: Answers = {
   spouseContributes: null,
   spouseIncome: null,
   spouseReliableContribution: null,
+  spouseReliableAmount: null,
   hasCardDebt: null,
   cardDebtMonthly: null,
   cardDebtOutstanding: null,
   cardDebtRate: null,
+  cardDebtInExistingEmi: null,
   hasOtherCommitments: null,
   otherFixedCommitments: null,
   employmentTenure: null,
@@ -47,8 +49,10 @@ export const emptyAnswers: Answers = {
   documentedAnnualIncome: null,
   weakMonthIncome: null,
   hasCollateral: null,
+  collateralType: null,
   collateralValue: null,
   collateralHasLoan: null,
+
   highCostDebt: null,
   recentBounce: null,
   bounceCount: null,
@@ -77,7 +81,8 @@ export const sampleBorrowers: SampleBorrower[] = [
     name: "Priya, 29 · Bengaluru",
     blurb: "Salaried software engineer · wants ₹8L for a wedding",
     detail:
-      "5 years at a large MNC, ₹1,10,000 take-home, a ₹14,000 car EMI, credit score 780, married with one child, rent ₹28,000, ₹3,500/month of insurance.",
+      "Given: 5 years at a large MNC, ₹1,10,000 take-home, a ₹14,000 car EMI with 2 years left, credit score 780, rent ₹28,000, ₹8L wanted for a wedding. Everything else below (other expenses, insurance, spouse, savings) is a demo assumption, clearly flagged, not part of her stated case.",
+
     answers: {
       ...emptyAnswers,
       purpose: "personal",
@@ -132,14 +137,17 @@ export const sampleBorrowers: SampleBorrower[] = [
     name: "Ravi, 42 · Mysuru",
     blurb: "Self-employed kirana owner · wants ₹15L for stock + a delivery vehicle",
     detail:
-      "14 years in business, cash income ₹55,000–90,000/month, ITR shows ₹4,20,000/year, unencumbered shop worth ₹45L, no credit score, wife earns ₹18,000 occasionally, two children in school.",
+      "Given: 14 years running the shop, cash income ₹40,000–₹80,000/month, ITR shows ₹4,20,000/year, an unencumbered shop worth ₹45L, no formal loan history or credit score, wife earns about ₹18,000 from teaching, ₹15L wanted for a stock line plus a delivery vehicle. Household expenses, insurance and savings below are demo assumptions.",
     answers: {
       ...emptyAnswers,
       purpose: "business",
       amount: 1500000,
       incomeType: "self_employed",
-      monthlyIncome: 75000,
-      weakMonthIncome: 55000,
+      /** His good month, with the weak month asked separately — we never assess the peak. */
+      monthlyIncome: 80000,
+      weakMonthIncome: 40000,
+
+
 
       incomeStability: "varies_some",
       existingEmi: 0,
@@ -174,8 +182,10 @@ export const sampleBorrowers: SampleBorrower[] = [
       businessVintage: "10plus",
       documentedAnnualIncome: 420000,
       hasCollateral: true,
+      collateralType: "property",
       collateralValue: 4500000,
       collateralHasLoan: "no",
+
       recentBounce: "no",
       emergencySavings: "1to3",
       hasOffer: false,
@@ -186,15 +196,16 @@ export const sampleBorrowers: SampleBorrower[] = [
     name: "Anita, 35 · Hubballi",
     blurb: "Delivery rider + home tailoring · wants ₹1,50,000 for an electric scooter",
     detail:
-      "₹26,000–30,000/month, two children, husband unemployed, 3 app loans totalling ₹35,000 at 30%+, one EMI bounced last month, no insurance.",
+      "Given: ₹26,000–₹30,000/month from delivery work and tailoring, two children, husband unemployed for 8 months, three app loans with ₹35,000 outstanding at over 30%, one EMI bounced last month, ₹1,50,000 wanted for an electric scooter. Expenses and savings below are demo assumptions.",
     answers: {
       ...emptyAnswers,
       purpose: "vehicle",
       amount: 150000,
       incomeType: "informal",
-      monthlyIncome: 28000,
-      weakMonthIncome: 22000,
+      monthlyIncome: 30000,
+      weakMonthIncome: 26000,
       incomeStability: "varies_a_lot",
+      /** The three app-loan repayments. Counted here once and never again as card debt. */
       existingEmi: 6500,
       expenses: {
         housing: 6500,
@@ -217,12 +228,14 @@ export const sampleBorrowers: SampleBorrower[] = [
       hasInsurance: "no",
       spouseContributes: "no",
       hasCardDebt: true,
-      cardDebtMonthly: 1500,
+      cardDebtMonthly: 6500,
+      cardDebtInExistingEmi: "yes",
       cardDebtOutstanding: 35000,
       cardDebtRate: "gt30",
       hasOtherCommitments: false,
       emergencySavings: "lt1",
       highCostDebt: true,
+
       recentBounce: "yes_3m",
       bounceCount: 1,
       activeLoans: 3,

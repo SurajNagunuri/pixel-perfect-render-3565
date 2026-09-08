@@ -1,4 +1,4 @@
-import type { HighestRate, IncomeType, Purpose, Savings, Stability } from "@/types";
+import type { CollateralType, HighestRate, IncomeType, Purpose, Savings, Stability } from "@/types";
 
 /**
  * Central configuration. Change a number here and every output updates.
@@ -293,6 +293,22 @@ export const RATE_BAND = {
 
 /** When collateral is pledged, price against this product's band instead of the raw purpose. */
 export const SECURED_ROUTE_PURPOSE: Purpose = "against_property";
+
+/**
+ * Collateral routes to a product, not just a discount. Property goes to a loan against
+ * property, gold to a gold loan. "Something else" and "not sure" are NOT routed to a
+ * secured product at all — we will not price a loan against an asset we can't identify.
+ */
+export const COLLATERAL_ROUTE: Record<CollateralType, Purpose | null> = {
+  property: "against_property",
+  gold: "gold",
+  other: null,
+  unsure: null,
+};
+
+export const COLLATERAL_ROUTE_REASON =
+  "Property is priced as a loan against property; gold as a gold loan. If the asset is unclear we keep the unsecured pricing and say what to ask about instead of assuming a cheaper product.";
+
 
 /** Verdict thresholds. */
 export const VERDICT_THRESHOLDS = {

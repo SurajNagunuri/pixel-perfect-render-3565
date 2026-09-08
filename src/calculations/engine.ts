@@ -25,7 +25,7 @@ import {
 
   SAFETY_HAIRCUTS,
   SAFE_FOIR,
-  SECURED_ROUTE_PURPOSE,
+  COLLATERAL_ROUTE,
   STRESS_ASSUMPTIONS,
   TENURE_AGE_RULE,
   TENURE_OPTIONS,
@@ -40,9 +40,11 @@ import type {
   Confidence,
   ExpenseCategory,
   IncomeType,
+  Purpose,
   TenureRow,
   Verdict,
 } from "@/types";
+
 
 /* ---------- core money math ---------- */
 
@@ -159,16 +161,50 @@ export function calculateAssessableIncome(a: Answers): { value: number; reason: 
 
 }
 
+/**
+ * The one canonical definition of expensive debt, used by every calculation that cares.
+ * It combines the rate on existing loans, the rate on a card / app-loan balance and the
+ * borrower's own explicit answer. A later "I don't know" can never erase a signal an
+ * earlier answer already established.
+ */
+export function highCostDebtSignal(a: Answers): { present: boolean; sources: string[] } {
+  const sources: string[] = [];
+  const existingRate = a.highestExistingRate ? HIGHEST_RATE_VALUE[a.highestExistingRate] : null;
+  const cardRate = a.cardDebtRate ? HIGHEST_RATE_VALUE[a.cardDebtRate] : null;
+  if (a.highCostDebt === true) sources.push("you told us you carry expensive debt");
+  if (existingRate !== null && existingRate >= HIGH_COST_DEBT_RATE_THRESHOLD)
+    sources.push(`an existing loan priced at about ${existingRate}%`);
+  if (cardRate !== null && cardRate >= HIGH_COST_DEBT_RATE_THRESHOLD)
+    sources.push(`a card or app loan priced at about ${cardRate}%`);
+  return { present: sources.length > 0, sources };
+}
+
 /** True when the borrower carries debt priced at or above the high-cost threshold. */
 export function hasExpensiveExistingDebt(a: Answers): boolean {
-  const highestRate = a.highestExistingRate ? HIGHEST_RATE_VALUE[a.highestExistingRate] : null;
-  return a.highCostDebt === true || (highestRate !== null && highestRate >= HIGH_COST_DEBT_RATE_THRESHOLD);
+  return highCostDebtSignal(a).present;
+}
+
+/**
+ * The card / app-loan payment counted separately. When the borrower has told us that
+ * payment is already inside their existing-EMI figure we count it once, in existing EMIs,
+ * and never again here — the single most important double-counting guard in the model.
+ */
+export function separateCardDebtPayment(a: Answers): { value: number; note: string | null } {
+  if (a.hasCardDebt !== true) return { value: 0, note: null };
+  const monthly = a.cardDebtMonthly ?? 0;
+  if (a.cardDebtInExistingEmi === "yes")
+    return {
+      value: 0,
+      note: "Your card / app-loan payment is already inside the existing-EMI figure you gave us, so we count it once there and not twice.",
+    };
+  return { value: monthly, note: null };
 }
 
 /** Cash actually in hand each month — never the documented-income discount. */
 export function householdCashIncome(a: Answers, assessed: number): number {
   return Math.max(assessed, plannableIncome(a).value);
 }
+
 
 /* ---------- household picture ---------- */
 
@@ -232,13 +268,22 @@ export function spouseContribution(a: Answers): { value: number; reason: string 
           ? "You preferred not to share spouse income, so we count none of it. That keeps the estimate conservative rather than optimistic."
           : null,
     };
+  /** If the borrower told us the actual rupee contribution, we use it rather than a bucket. */
+  if (a.spouseReliableAmount !== null && a.spouseReliableAmount >= 0) {
+    const value = Math.min(Math.round(a.spouseReliableAmount * regularity), a.spouseIncome);
+    return {
+      value,
+      reason: `Your spouse earns about ₹${a.spouseIncome.toLocaleString("en-IN")}/month and you told us about ₹${a.spouseReliableAmount.toLocaleString("en-IN")} of it reaches the household. We count ₹${value.toLocaleString("en-IN")}${regularity < 1 ? ", trimmed because that earning is not every month" : ""} — never the full income.`,
+    };
+  }
   const share = SPOUSE_CONTRIBUTION.share[a.spouseReliableContribution ?? "unsure"];
   const value = Math.round(a.spouseIncome * regularity * share);
   return {
     value,
-    reason: `Your spouse earns about ₹${a.spouseIncome.toLocaleString("en-IN")}/month. We count ₹${value.toLocaleString("en-IN")} of it as reliably available for household costs and repayment — never the full amount.`,
+    reason: `Your spouse earns about ₹${a.spouseIncome.toLocaleString("en-IN")}/month. You didn't give an exact contribution, so we count ₹${value.toLocaleString("en-IN")} of it as reliably available for household costs and repayment — never the full amount.`,
   };
 }
+
 
 /** Income the household can actually plan around, borrower plus reliable spouse share. */
 export function reliableHouseholdIncome(a: Answers, assessed: number) {
@@ -262,7 +307,9 @@ export function calculateAffordability(a: Answers) {
   const cashIncome = householdCashIncome(a, income.value);
   const household = reliableHouseholdIncome(a, income.value);
   const insurance = insurancePremiumTotal(a, household.total);
-  const cardDebt = a.hasCardDebt === true ? (a.cardDebtMonthly ?? 0) : 0;
+  const cardDebtPayment = separateCardDebtPayment(a);
+  const cardDebt = cardDebtPayment.value;
+
   const otherCommitments = a.hasOtherCommitments === true ? (a.otherFixedCommitments ?? 0) : 0;
 
   const rawSafe = Math.max(0, income.value * safeFoir - existing);
@@ -362,6 +409,8 @@ export function calculateAffordability(a: Answers) {
       `You skipped ${expenseInfo.missing.join(", ").toLowerCase()}, so we hold back about ₹${missingAllowance.toLocaleString("en-IN")}/month for them rather than assuming they cost nothing — and your safer range stays deliberately wider.`,
     );
   if (household.spouseReason) assumptions.push(household.spouseReason);
+  if (cardDebtPayment.note) assumptions.push(cardDebtPayment.note);
+
 
   const reasonParts: string[] = [
     `Two separate checks. Your lender-style debt-service ceiling is ${Math.round(safeFoir * 100)}% of the ₹${income.value.toLocaleString("en-IN")}/month we can assess${existing > 0 ? `, less the ₹${existing.toLocaleString("en-IN")} already going to existing EMIs` : ""}, which allows about ₹${Math.round(rawSafe).toLocaleString("en-IN")}/month.`,
@@ -417,11 +466,23 @@ export function calculateAffordability(a: Answers) {
 /* ---------- secured routing ---------- */
 
 /**
+ * Which secured product this collateral actually points to. Property means a loan against
+ * property, gold means a gold loan. An unclear asset routes nowhere — we would rather keep
+ * the honest unsecured pricing than quote a product the borrower may not be able to get.
+ */
+export function securedProductPurpose(a: Answers): Purpose | null {
+  if (a.hasCollateral !== true) return null;
+  if ((a.collateralValue ?? 0) < COLLATERAL.minValueToRouteSecured) return null;
+  const type = a.collateralType ?? "unsure";
+  return COLLATERAL_ROUTE[type] ?? null;
+}
+
+/**
  * Pledgeable collateral changes the product, not just the price: it is what lets us
  * quote a secured band, a secured tenure and an LTV-capped sanction.
  */
 export function isSecuredRoute(a: Answers): boolean {
-  return a.hasCollateral === true && (a.collateralValue ?? 0) >= COLLATERAL.minValueToRouteSecured;
+  return securedProductPurpose(a) !== null;
 }
 
 /* ---------- fair rate ---------- */
@@ -432,9 +493,11 @@ export function calculateFairRate(a: Answers): {
   factors: string[];
 } {
   const purpose = a.purpose ?? "other";
-  const secured = isSecuredRoute(a);
+  const securedPurpose = securedProductPurpose(a);
+  const secured = securedPurpose !== null;
   /** With collateral we price the secured product the borrower should actually ask for. */
-  const pricedPurpose = secured ? SECURED_ROUTE_PURPOSE : purpose;
+  const pricedPurpose = securedPurpose ?? purpose;
+
   const base = RATE_BANDS[pricedPurpose];
   let low = base.low;
   let high = base.high;
@@ -931,11 +994,13 @@ export function runAssessment(a: Answers): Assessment {
   const rate = calculateFairRate(a);
   const midRate = (rate.value.low + rate.value.high) / 2;
   // Pledgeable collateral opens up secured products, which run longer than the unsecured default.
-  const securedRoute = isSecuredRoute(a);
-  const tenurePurpose = securedRoute ? SECURED_ROUTE_PURPOSE : purpose;
-  const requestedTenure = securedRoute
-    ? Math.max(DEFAULT_TENURES[purpose], DEFAULT_TENURES[SECURED_ROUTE_PURPOSE])
+  const securedPurpose = securedProductPurpose(a);
+  const securedRoute = securedPurpose !== null;
+  const tenurePurpose = securedPurpose ?? purpose;
+  const requestedTenure = securedPurpose
+    ? Math.max(DEFAULT_TENURES[purpose], DEFAULT_TENURES[securedPurpose])
     : DEFAULT_TENURES[purpose];
+
   const tenureLimit = tenureLimitForAge(a, requestedTenure);
   const months = tenureLimit.months;
 
@@ -970,9 +1035,13 @@ export function runAssessment(a: Answers): Assessment {
     securedRoute,
   );
 
+  const securedProductName = securedPurpose ? RATE_BANDS[securedPurpose].label.toLowerCase() : null;
   const secured = securedRoute
-    ? `You have collateral worth about ₹${(a.collateralValue as number).toLocaleString("en-IN")}${a.collateralHasLoan === "yes" ? ", already carrying a loan, so only part of its value is free" : a.collateralHasLoan === "unknown" ? ", though you weren't sure whether it already carries a loan, so we stayed cautious" : " and free of any existing loan"}. Ask specifically about a secured product (loan against property / business loan against collateral) — it is usually several percentage points cheaper than the unsecured quote you'll be offered first, and we have already priced your range as a secured loan. Collateral raises what a lender may sanction; it does not raise what your household can repay each month.`
-    : null;
+    ? `You have ${a.collateralType === "gold" ? "gold" : "property"} worth about ₹${(a.collateralValue as number).toLocaleString("en-IN")}${a.collateralHasLoan === "yes" ? ", already carrying a loan, so only part of its value is free" : a.collateralHasLoan === "unknown" ? ", though you weren't sure whether it already carries a loan, so we stayed cautious" : " and free of any existing loan"}. Ask specifically for a ${securedProductName} — it is usually several percentage points cheaper than the unsecured quote you'll be offered first, and we have already priced your range as that product. Collateral raises what a lender may sanction; it does not raise what your household can repay each month.`
+    : a.hasCollateral === true
+      ? `You said you have something you could pledge, but ${a.collateralType === "unsure" || a.collateralType === null ? "we couldn't tell what kind of asset it is" : "it isn't property or gold"}${(a.collateralValue ?? 0) > 0 && (a.collateralValue ?? 0) < COLLATERAL.minValueToRouteSecured ? ", and its value is small relative to what you want to borrow" : ""}, so we have kept the honest unsecured pricing. Ask a lender directly whether they will lend against it — if they will, your rate should drop.`
+      : null;
+
 
   const foirNow =
     aff.incomeBasis.value > 0 ? (requestedEmi + (a.existingEmi ?? 0)) / aff.incomeBasis.value : 1;
