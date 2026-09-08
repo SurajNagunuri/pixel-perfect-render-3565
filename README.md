@@ -4,7 +4,7 @@ A borrowing decision assistant for Indian borrowers, built on one principle:
 
 > **What a lender may give you is not the same as what you should take.**
 
-**Live app:** [https://pixel-perfect-render-3565.lovable.app](https://pixel-perfect-render-3565.lovable.app)
+**Live app:** [https://pixel-perfect-render-3565.lovable.app](https://borrower-copilot-v1.lovable.app/)
 
 Most tools calculate an EMI or predict an approval. Borrower Copilot answers the question a borrower
 actually has — _should I take this loan, and on what terms_ — and shows the gap between lender-side
