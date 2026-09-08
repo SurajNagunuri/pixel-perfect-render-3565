@@ -105,6 +105,7 @@ const SECTION_OF: Record<StepId, Section> = {
   businessVintage: "Your income",
   documented: "Your income",
   collateral: "Your income",
+  collateralKind: "Your income",
   collateralValue: "Your income",
   collateralLoan: "Your income",
   family: "Your household",
@@ -122,6 +123,7 @@ const SECTION_OF: Record<StepId, Section> = {
   debtRate: "Your commitments",
   cardDebt: "Your commitments",
   cardDebtAmount: "Your commitments",
+  cardDebtInEmi: "Your commitments",
   cardDebtBalance: "Your commitments",
   insurance: "Your commitments",
   insuranceDetail: "Your commitments",
@@ -154,8 +156,9 @@ const AUTO_ADVANCE: StepId[] = [
   "dependentsAny",
   "dependents",
   "children",
-  "spouseShare",
+  "collateralKind",
   "collateralLoan",
+  "cardDebtInEmi",
 ];
 
 /** True when income moves month to month, so a weaker-month figure is worth asking for. */
@@ -178,7 +181,7 @@ function visibleSteps(a: Answers): StepId[] {
   if (a.incomeType === "salaried" || a.incomeType === "mixed") steps.push("employmentTenure", "variablePct");
   if (a.incomeType === "self_employed" || a.incomeType === "mixed") steps.push("businessVintage", "documented");
   steps.push("collateral");
-  if (a.hasCollateral === true) steps.push("collateralValue", "collateralLoan");
+  if (a.hasCollateral === true) steps.push("collateralKind", "collateralValue", "collateralLoan");
 
   // Household shape: asked after income, because it changes cash-flow capacity, not pricing.
   steps.push("family", "dependentsAny");
@@ -196,7 +199,12 @@ function visibleSteps(a: Answers): StepId[] {
   steps.push("existingEmi");
   if ((a.existingEmi ?? 0) > 0) steps.push("debtCount", "debtOutstanding", "debtRate");
   steps.push("cardDebt");
-  if (a.hasCardDebt === true) steps.push("cardDebtAmount", "cardDebtBalance");
+  if (a.hasCardDebt === true) {
+    steps.push("cardDebtAmount");
+    // Only worth asking when there is an existing-EMI figure it could already be inside.
+    if ((a.existingEmi ?? 0) > 0) steps.push("cardDebtInEmi");
+    steps.push("cardDebtBalance");
+  }
 
   steps.push("insurance");
   if (a.hasInsurance === "yes") steps.push("insuranceDetail");
@@ -377,6 +385,8 @@ function validate(step: StepId, a: Answers): string | null {
       return null;
     case "collateral":
       return a.hasCollateral === null ? "Choose yes or no." : null;
+    case "collateralKind":
+      return a.collateralType === null ? "Choose one option." : null;
     case "collateralLoan":
       return a.collateralHasLoan === null ? "Choose one option." : null;
     case "bounce":
@@ -416,6 +426,8 @@ function validate(step: StepId, a: Answers): string | null {
       return a.hasCardDebt === null ? "Choose yes or no." : null;
     case "cardDebtAmount":
       return a.cardDebtMonthly === null ? "Enter a rough monthly payment." : null;
+    case "cardDebtInEmi":
+      return a.cardDebtInExistingEmi === null ? "Choose one option." : null;
     case "cardDebtBalance":
       return null;
 
