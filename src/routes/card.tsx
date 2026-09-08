@@ -197,8 +197,11 @@ function CardPage() {
             <div className="mt-4 border border-caution bg-caution-soft px-4 py-3">
               <p className="eyebrow">Why this EMI ceiling?</p>
               <p className="num mt-1 font-display text-xl">
-                Do not cross {formatINR(r.safeEmi.value)} / month
+                {r.safeEmi.value <= 0
+                  ? "No new EMI fits right now"
+                  : `Do not cross ${formatINR(r.safeEmi.value)} / month`}
               </p>
+
               <p className="mt-1.5 text-sm leading-relaxed">
                 {r.bindingConstraint === "cash_flow"
                   ? `Lending rules would allow about ${formatINR(r.foirSafeEmi)} a month, but after what my household actually spends only ${formatINR(r.cashFlow.emiCapFromCashFlow)} a month fits comfortably${r.safeEmi.value < r.cashFlow.emiCapFromCashFlow ? `, and allowing for a bad month brings my ceiling to ${formatINR(r.safeEmi.value)}` : ""}.`
