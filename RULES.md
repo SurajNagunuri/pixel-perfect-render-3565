@@ -61,6 +61,9 @@ cash-flow EMI cap = 60% of free cash flow
 
 The 40% left untouched is for irregular costs, festivals, repairs and medical bills.
 
+The allowance for skipped expense categories is shown as its own line in the cash-flow
+breakdown, so the figures on screen always add up to the "left over each month" number.
+
 Spouse income is never counted in full. Contribution = income × regularity (regular 1.0, sometimes
 0.6, no/prefer-not 0) × the share that reaches the household (most 0.75, half 0.5, smaller 0.25,
 unsure 0.25). If the borrower states the actual rupee contribution, that figure is used instead.
@@ -117,6 +120,10 @@ to ask a lender directly. A lender sanction is capped at 60% of value, reduced t
 the asset already carries a loan and 75% of it when the borrower is unsure. Collateral can never
 raise the safe EMI.
 
+Because a secured sanction is capped by the asset's free value, the safer borrowing figure is also
+capped there: what you should carry can never sit above what could actually be advanced against
+that asset. Collateral still never raises the safe EMI.
+
 ## 9. APR and charges — _market estimate_
 
 With no quote we assume a 1.5% processing fee plus 0.2% other upfront charges. Those come off the
@@ -150,3 +157,10 @@ reduce the amount rather than stretch the term.
 Unknown is never zero and never a penalty in disguise. Skipped expense categories draw a 3%-of-income
 allowance, unknown insurance a 2% allowance, and both are named on screen. Unknown score, savings or
 payment history widen the range and lower confidence instead of assuming the worst.
+
+## 14. Input hygiene — _my judgement_
+
+Every calculation runs on sanitised answers. A negative, non-numeric or impossible figure (a
+negative income, an out-of-range age) is treated as _not answered_ rather than flowing through the
+maths, so no output can ever be negative or nonsensical. A blank amount means no charges and no
+disbursal to show — the APR then simply equals the fair-rate band.
