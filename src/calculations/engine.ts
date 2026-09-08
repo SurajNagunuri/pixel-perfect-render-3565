@@ -44,6 +44,63 @@ import type {
   Verdict,
 } from "@/types";
 
+/* ---------- input hygiene ---------- */
+
+/** A blank stays blank; a nonsense figure (negative, NaN, Infinity) is treated as not answered
+ *  rather than silently flowing through the maths as a negative rupee amount. */
+function money(v: number | null): number | null {
+  if (v === null) return null;
+  if (!Number.isFinite(v) || v < 0) return null;
+  return v;
+}
+
+/**
+ * Every calculation runs on sanitised answers, so a stray minus sign or a pasted value
+ * can never produce negative capacity, negative EMIs or NaN anywhere downstream.
+ */
+export function normalizeAnswers(a: Answers): Answers {
+  const age =
+    a.age !== null && Number.isFinite(a.age) && a.age >= AGE_LIMITS.min && a.age <= AGE_LIMITS.max
+      ? a.age
+      : null;
+  return {
+    ...a,
+    amount: money(a.amount),
+    monthlyIncome: money(a.monthlyIncome),
+    weakMonthIncome: money(a.weakMonthIncome),
+    documentedAnnualIncome: money(a.documentedAnnualIncome),
+    existingEmi: money(a.existingEmi),
+    householdExpenses: money(a.householdExpenses),
+    insuranceHealth: money(a.insuranceHealth),
+    insuranceLife: money(a.insuranceLife),
+    insuranceOther: money(a.insuranceOther),
+    spouseIncome: money(a.spouseIncome),
+    spouseReliableAmount: money(a.spouseReliableAmount),
+    cardDebtMonthly: money(a.cardDebtMonthly),
+    cardDebtOutstanding: money(a.cardDebtOutstanding),
+    otherFixedCommitments: money(a.otherFixedCommitments),
+    collateralValue: money(a.collateralValue),
+    outstandingPrincipal: money(a.outstandingPrincipal),
+    activeLoans: money(a.activeLoans),
+    bounceCount: money(a.bounceCount),
+    creditScore: money(a.creditScore),
+    offerRate: money(a.offerRate),
+    offerAmount: money(a.offerAmount),
+    offerTenureMonths: money(a.offerTenureMonths),
+    age,
+    expenses: {
+      housing: money(a.expenses.housing),
+      food: money(a.expenses.food),
+      utilities: money(a.expenses.utilities),
+      transport: money(a.expenses.transport),
+      education: money(a.expenses.education),
+      medical: money(a.expenses.medical),
+      dependentSupport: money(a.expenses.dependentSupport),
+      other: money(a.expenses.other),
+    },
+  };
+}
+
 /* ---------- core money math ---------- */
 
 export function calculateEMI(principal: number, annualRatePct: number, months: number): number {
@@ -294,7 +351,8 @@ export function reliableHouseholdIncome(a: Answers, assessed: number) {
 
 /* ---------- affordability ---------- */
 
-export function calculateAffordability(a: Answers) {
+export function calculateAffordability(input: Answers) {
+  const a = normalizeAnswers(input);
   const type = effectiveIncomeType(a);
   const income = calculateAssessableIncome(a);
   const safeFoir = SAFE_FOIR[type];
@@ -466,6 +524,7 @@ export function calculateAffordability(a: Answers) {
       insurance: insurance.total,
       cardDebt,
       otherCommitments,
+      unknownAllowance: missingAllowance,
       freeCashFlow: Math.round(freeCashFlow),
       emiCapFromCashFlow: Math.round(cashCap),
       bufferShare: CASH_FLOW_BUFFER.value,
@@ -499,11 +558,12 @@ export function isSecuredRoute(a: Answers): boolean {
 
 /* ---------- fair rate ---------- */
 
-export function calculateFairRate(a: Answers): {
+export function calculateFairRate(input: Answers): {
   value: Band;
   reason: string;
   factors: string[];
 } {
+  const a = normalizeAnswers(input);
   const purpose = a.purpose ?? "other";
   const securedPurpose = securedProductPurpose(a);
   const secured = securedPurpose !== null;
@@ -1044,7 +1104,8 @@ export function upfrontCharges(a: Answers, amount: number) {
     other,
     quoted,
     total: fee + other,
-    netDisbursed: Math.max(1, amount - fee - other),
+    /** No amount asked for means nothing is disbursed — never a token ₹1. */
+    netDisbursed: amount > 0 ? Math.max(1, amount - fee - other) : 0,
     reason: quoted
       ? `Your quoted processing fee of ₹${Math.round(fee).toLocaleString("en-IN")} plus about ${(FEE_ASSUMPTIONS.otherUpfrontChargesPct * 100).toFixed(1)}% of other upfront charges never reaches your account, so the true annualised cost is higher than the headline rate.`
       : `No quote yet, so we assume a ${(FEE_ASSUMPTIONS.assumedProcessingFeePct * 100).toFixed(1)}% processing fee (₹${Math.round(fee).toLocaleString("en-IN")}) plus ${(FEE_ASSUMPTIONS.otherUpfrontChargesPct * 100).toFixed(1)}% of other upfront charges. Those come off the disbursal, so the true annualised cost is higher than the headline rate.`,
@@ -1053,7 +1114,8 @@ export function upfrontCharges(a: Answers, amount: number) {
 
 /* ---------- top-level ---------- */
 
-export function runAssessment(a: Answers): Assessment {
+export function runAssessment(input: Answers): Assessment {
+  const a = normalizeAnswers(input);
   const purpose = a.purpose ?? "other";
   const aff = calculateAffordability(a);
   const rate = calculateFairRate(a);
@@ -1072,20 +1134,33 @@ export function runAssessment(a: Answers): Assessment {
   const safeAmount = calculateSafeBorrowing(aff.safeEmi.value, rate.value, months);
   const lenderAmount = calculateLenderLikelySanction(aff.lenderEmi.value, rate.value, months, a);
 
+  /*
+   * A secured sanction is capped by the asset's free value. Your safer ceiling can never sit
+   * above what could actually be advanced against that asset, so we cap it and say why.
+   */
+  if (securedRoute && lenderAmount.value.high < safeAmount.value.high) {
+    safeAmount.value.high = lenderAmount.value.high;
+    safeAmount.value.low = Math.min(safeAmount.value.low, lenderAmount.value.high);
+    safeAmount.reason += ` Your collateral supports only about ₹${lenderAmount.value.high.toLocaleString("en-IN")} against it, so we cap this safer figure there — here the asset, not your cash flow, is the limit.`;
+  }
+
   const requested = a.amount ?? 0;
   const requestedEmi = Math.round(calculateEMI(requested, midRate, months));
 
   const charges = upfrontCharges(a, requested);
-  const aprLow = calculateAPR(
-    charges.netDisbursed,
-    calculateEMI(requested, rate.value.low, months),
-    months,
-  );
-  const aprHigh = calculateAPR(
-    charges.netDisbursed,
-    calculateEMI(requested, rate.value.high, months),
-    months,
-  );
+  /** With no amount entered there are no charges to spread, so the APR is just the rate band. */
+  const aprLow =
+    requested > 0
+      ? calculateAPR(charges.netDisbursed, calculateEMI(requested, rate.value.low, months), months)
+      : {
+          value: rate.value.low,
+          reason:
+            "Tell us how much you want to borrow and we'll show the true cost once fees are added.",
+        };
+  const aprHigh =
+    requested > 0
+      ? calculateAPR(charges.netDisbursed, calculateEMI(requested, rate.value.high, months), months)
+      : { value: rate.value.high, reason: "" };
 
   const stress = calculateStressCase(
     a,

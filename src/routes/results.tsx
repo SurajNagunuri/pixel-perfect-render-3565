@@ -365,6 +365,12 @@ function Results() {
                   {r.cashFlow.otherCommitments > 0 ? (
                     <FlowRow label="Other fixed commitments" value={-r.cashFlow.otherCommitments} />
                   ) : null}
+                  {r.cashFlow.unknownAllowance > 0 ? (
+                    <FlowRow
+                      label="Held back for spending you skipped"
+                      value={-r.cashFlow.unknownAllowance}
+                    />
+                  ) : null}
                   <FlowRow label="Left over each month" value={r.cashFlow.freeCashFlow} strong />
                   <FlowRow
                     label={`Of that, EMI we'd call comfortable (${Math.round(r.cashFlow.bufferShare * 100)}%)`}

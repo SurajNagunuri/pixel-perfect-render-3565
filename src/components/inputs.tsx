@@ -169,11 +169,17 @@ export function PlainInput({
     <div className="flex items-center rounded-xl border border-input bg-card px-4 focus-within:border-primary focus-within:ring-2 focus-within:ring-ring/20">
       <input
         type="number"
+        min={0}
         step={step}
         autoFocus={autoFocus}
         value={value ?? ""}
         placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
+        onChange={(e) => {
+          if (e.target.value === "") return onChange(null);
+          const n = Number(e.target.value);
+          /** Negative or nonsense figures are never real answers here. */
+          onChange(Number.isFinite(n) ? Math.max(0, n) : null);
+        }}
         className="num w-full min-w-0 bg-transparent py-4 text-2xl outline-none placeholder:text-lg placeholder:text-muted-foreground/70"
       />
       {suffix ? (

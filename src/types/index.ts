@@ -198,6 +198,8 @@ export interface Assessment {
     insurance: number;
     cardDebt: number;
     otherCommitments: number;
+    /** Money held back for expense categories the borrower left blank. */
+    unknownAllowance: number;
     freeCashFlow: number;
     emiCapFromCashFlow: number;
     bufferShare: number;

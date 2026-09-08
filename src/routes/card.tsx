@@ -186,7 +186,8 @@ function CardPage() {
                     r.cashFlow.insurance +
                     r.cashFlow.existingEmi +
                     r.cashFlow.cardDebt +
-                    r.cashFlow.otherCommitments,
+                    r.cashFlow.otherCommitments +
+                    r.cashFlow.unknownAllowance,
                 )} / month`}
               />
               <Row
