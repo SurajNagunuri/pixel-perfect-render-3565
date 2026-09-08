@@ -44,6 +44,63 @@ import type {
   Verdict,
 } from "@/types";
 
+/* ---------- input hygiene ---------- */
+
+/** A blank stays blank; a nonsense figure (negative, NaN, Infinity) is treated as not answered
+ *  rather than silently flowing through the maths as a negative rupee amount. */
+function money(v: number | null): number | null {
+  if (v === null) return null;
+  if (!Number.isFinite(v) || v < 0) return null;
+  return v;
+}
+
+/**
+ * Every calculation runs on sanitised answers, so a stray minus sign or a pasted value
+ * can never produce negative capacity, negative EMIs or NaN anywhere downstream.
+ */
+export function normalizeAnswers(a: Answers): Answers {
+  const age =
+    a.age !== null && Number.isFinite(a.age) && a.age >= AGE_LIMITS.min && a.age <= AGE_LIMITS.max
+      ? a.age
+      : null;
+  return {
+    ...a,
+    amount: money(a.amount),
+    monthlyIncome: money(a.monthlyIncome),
+    weakMonthIncome: money(a.weakMonthIncome),
+    documentedAnnualIncome: money(a.documentedAnnualIncome),
+    existingEmi: money(a.existingEmi),
+    householdExpenses: money(a.householdExpenses),
+    insuranceHealth: money(a.insuranceHealth),
+    insuranceLife: money(a.insuranceLife),
+    insuranceOther: money(a.insuranceOther),
+    spouseIncome: money(a.spouseIncome),
+    spouseReliableAmount: money(a.spouseReliableAmount),
+    cardDebtMonthly: money(a.cardDebtMonthly),
+    cardDebtOutstanding: money(a.cardDebtOutstanding),
+    otherFixedCommitments: money(a.otherFixedCommitments),
+    collateralValue: money(a.collateralValue),
+    outstandingPrincipal: money(a.outstandingPrincipal),
+    activeLoans: money(a.activeLoans),
+    bounceCount: money(a.bounceCount),
+    creditScore: money(a.creditScore),
+    offerRate: money(a.offerRate),
+    offerAmount: money(a.offerAmount),
+    offerTenureMonths: money(a.offerTenureMonths),
+    age,
+    expenses: {
+      housing: money(a.expenses.housing),
+      food: money(a.expenses.food),
+      utilities: money(a.expenses.utilities),
+      transport: money(a.expenses.transport),
+      education: money(a.expenses.education),
+      medical: money(a.expenses.medical),
+      dependentSupport: money(a.expenses.dependentSupport),
+      other: money(a.expenses.other),
+    },
+  };
+}
+
 /* ---------- core money math ---------- */
 
 export function calculateEMI(principal: number, annualRatePct: number, months: number): number {
