@@ -1133,20 +1133,33 @@ export function runAssessment(input: Answers): Assessment {
   const safeAmount = calculateSafeBorrowing(aff.safeEmi.value, rate.value, months);
   const lenderAmount = calculateLenderLikelySanction(aff.lenderEmi.value, rate.value, months, a);
 
+  /*
+   * A secured sanction is capped by the asset's free value. Your safer ceiling can never sit
+   * above what could actually be advanced against that asset, so we cap it and say why.
+   */
+  if (securedRoute && lenderAmount.value.high < safeAmount.value.high) {
+    safeAmount.value.high = lenderAmount.value.high;
+    safeAmount.value.low = Math.min(safeAmount.value.low, lenderAmount.value.high);
+    safeAmount.reason += ` Your collateral supports only about ₹${lenderAmount.value.high.toLocaleString("en-IN")} against it, so we cap this safer figure there — here the asset, not your cash flow, is the limit.`;
+  }
+
   const requested = a.amount ?? 0;
   const requestedEmi = Math.round(calculateEMI(requested, midRate, months));
 
   const charges = upfrontCharges(a, requested);
-  const aprLow = calculateAPR(
-    charges.netDisbursed,
-    calculateEMI(requested, rate.value.low, months),
-    months,
-  );
-  const aprHigh = calculateAPR(
-    charges.netDisbursed,
-    calculateEMI(requested, rate.value.high, months),
-    months,
-  );
+  /** With no amount entered there are no charges to spread, so the APR is just the rate band. */
+  const aprLow =
+    requested > 0
+      ? calculateAPR(charges.netDisbursed, calculateEMI(requested, rate.value.low, months), months)
+      : {
+          value: rate.value.low,
+          reason:
+            "Tell us how much you want to borrow and we'll show the true cost once fees are added.",
+        };
+  const aprHigh =
+    requested > 0
+      ? calculateAPR(charges.netDisbursed, calculateEMI(requested, rate.value.high, months), months)
+      : { value: rate.value.high, reason: "" };
 
   const stress = calculateStressCase(
     a,
