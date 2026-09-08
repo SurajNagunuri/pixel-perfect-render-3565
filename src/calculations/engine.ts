@@ -351,7 +351,8 @@ export function reliableHouseholdIncome(a: Answers, assessed: number) {
 
 /* ---------- affordability ---------- */
 
-export function calculateAffordability(a: Answers) {
+export function calculateAffordability(input: Answers) {
+  const a = normalizeAnswers(input);
   const type = effectiveIncomeType(a);
   const income = calculateAssessableIncome(a);
   const safeFoir = SAFE_FOIR[type];
