@@ -71,7 +71,7 @@ function invariants(label: string, a: Answers) {
   check(`${s} verdict has a reason`, r.verdict.reason.length > 20);
   check(`${s} at least 3 reasons`, r.reasons.length >= 3, String(r.reasons.length));
   check(`${s} confidence levels valid`, ["High", "Medium", "Low"].every((_) => true) && ["High", "Medium", "Low"].includes(r.confidence.overall) && ["High", "Medium", "Low"].includes(r.confidence.rate) && ["High", "Medium", "Low"].includes(r.confidence.amount));
-  check(`${s} every figure has a why`, [r.safeEmi.why, r.safeAmount.why, r.lenderAmount.why, r.fairRate.why, r.apr.why].every((w) => typeof w === "string" && w.length > 20));
+  check(`${s} every figure has a why`, [r.safeEmi.reason, r.safeAmount.reason, r.lenderAmount.reason, r.fairRate.reason, r.apr.reason].every((w) => typeof w === "string" && w.length > 20));
   check(`${s} no NaN anywhere`, !JSON.stringify(r).includes("null,\"why") && !/NaN/.test(JSON.stringify(r)), JSON.stringify(r).match(/NaN/) ? "NaN found" : "");
   // denominators: FOIR must be measured on the same assessed income everywhere
   const burden = r.assessedMonthlyIncome > 0 ? (r.safeEmi.value + (a.existingEmi ?? 0)) / r.assessedMonthlyIncome : 0;
