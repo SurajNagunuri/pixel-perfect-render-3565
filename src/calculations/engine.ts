@@ -558,11 +558,12 @@ export function isSecuredRoute(a: Answers): boolean {
 
 /* ---------- fair rate ---------- */
 
-export function calculateFairRate(a: Answers): {
+export function calculateFairRate(input: Answers): {
   value: Band;
   reason: string;
   factors: string[];
 } {
+  const a = normalizeAnswers(input);
   const purpose = a.purpose ?? "other";
   const securedPurpose = securedProductPurpose(a);
   const secured = securedPurpose !== null;
